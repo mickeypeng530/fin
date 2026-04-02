@@ -1,6 +1,6 @@
 *.xlsx
 *.xls
 *.csv
-fin_data_*.json
+fin_data*.json
 .DS_Store
 Thumbs.db

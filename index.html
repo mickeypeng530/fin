@@ -137,7 +137,7 @@
 </head>
 <body>
 
-<nav>
+<nav id="main-nav" style="display:none">
   <div class="nav-logo">fin</div>
   <div class="nav-tabs">
     <button class="nav-tab active" onclick="showPage('overview',this)">總覽</button>
@@ -148,12 +148,30 @@
   </div>
   <div style="display:flex;align-items:center;gap:1rem">
     <div class="nav-date" id="nav-date"></div>
+    <button class="btn btn-secondary" onclick="saveToFile()" style="padding:0.3rem 0.8rem;font-size:0.8rem">儲存檔案</button>
     <div class="theme-row">
       <span class="theme-label" id="theme-label">🌙</span>
       <button class="theme-btn" onclick="toggleTheme()" title="切換深色/淺色"></button>
     </div>
   </div>
 </nav>
+
+<!-- WELCOME PAGE -->
+<div id="page-welcome" style="display:flex;align-items:center;justify-content:center;min-height:100vh">
+  <div class="card" style="max-width:460px;text-align:center;padding:3rem">
+    <div style="font-size:2.5rem;font-weight:700;color:var(--accent);letter-spacing:3px;margin-bottom:0.5rem">fin</div>
+    <div style="color:var(--muted);margin-bottom:2.5rem;font-size:0.95rem">個人財務追蹤器</div>
+    <div style="display:flex;flex-direction:column;gap:0.75rem">
+      <button class="btn btn-primary" onclick="document.getElementById('load-file').click()" style="width:100%;padding:0.85rem">載入資料檔案</button>
+      <input type="file" id="load-file" accept=".json" style="display:none" onchange="loadFile(event)">
+      <button class="btn btn-secondary" onclick="startNew()" style="width:100%;padding:0.85rem">建立新的資料檔</button>
+    </div>
+    <div style="margin-top:2rem;font-size:0.78rem;color:var(--muted);line-height:1.6">
+      資料只在你的瀏覽器中讀取，不會上傳到任何伺服器。<br>
+      建議將資料檔存放在 Google Drive 資料夾以便同步。
+    </div>
+  </div>
+</div>
 
 <!-- OVERVIEW PAGE -->
 <div class="page active" id="page-overview">
@@ -468,12 +486,12 @@
   <div class="card mt2">
     <div class="card-title">資料管理</div>
     <div class="btn-row" style="margin-top:0.5rem">
-      <button class="btn btn-secondary" onclick="exportData()">匯出 JSON</button>
-      <button class="btn btn-secondary" onclick="document.getElementById('import-file').click()">匯入 JSON</button>
-      <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(event)">
+      <button class="btn btn-primary" onclick="saveToFile()">儲存資料檔</button>
+      <button class="btn btn-secondary" onclick="document.getElementById('load-file-settings').click()">載入其他資料檔</button>
+      <input type="file" id="load-file-settings" accept=".json" style="display:none" onchange="loadFile(event)">
     </div>
     <div style="margin-top:1rem;font-size:0.82rem;color:var(--muted)">
-      匯出的 JSON 檔案即為你的完整資料備份，可存入 Google Drive 保存。
+      儲存後會下載 fin_data.json，請存回 Google Drive 資料夾覆蓋舊檔。
     </div>
   </div>
 </div>
@@ -526,17 +544,54 @@ const SEED_SNAPSHOTS = [
 
 // ===== DATA LAYER =====
 let db = { settings: { ...DEFAULT_SETTINGS }, snapshots: [] };
+let hasUnsaved = false;
 
-function loadDB() {
-  try {
-    const raw = localStorage.getItem('fin_db');
-    if (raw) { db = JSON.parse(raw); }
-    else { db = { settings: { ...DEFAULT_SETTINGS }, snapshots: [...SEED_SNAPSHOTS] }; saveDB(); }
-  } catch(e) { db = { settings: { ...DEFAULT_SETTINGS }, snapshots: [...SEED_SNAPSHOTS] }; }
+function markUnsaved() {
+  hasUnsaved = true;
+  document.title = '● fin — 財務追蹤器';
 }
 
-function saveDB() {
-  localStorage.setItem('fin_db', JSON.stringify(db));
+function markSaved() {
+  hasUnsaved = false;
+  document.title = 'fin — 財務追蹤器';
+}
+
+function loadFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      db = JSON.parse(ev.target.result);
+      enterApp();
+      showToast('資料載入成功');
+    } catch { alert('JSON 格式錯誤，請確認檔案'); }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+function startNew() {
+  db = { settings: { ...DEFAULT_SETTINGS }, snapshots: [...SEED_SNAPSHOTS] };
+  enterApp();
+  showToast('已建立新資料，請記得儲存');
+  markUnsaved();
+}
+
+function enterApp() {
+  document.getElementById('page-welcome').style.display = 'none';
+  document.getElementById('main-nav').style.display = '';
+  renderOverview();
+}
+
+function saveToFile() {
+  const blob = new Blob([JSON.stringify(db, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'fin_data.json';
+  a.click();
+  markSaved();
+  showToast('已下載 fin_data.json');
 }
 
 // ===== COMPUTED =====
@@ -874,7 +929,7 @@ function toggleDetail(month) {
 function deleteSnapshot(month) {
   if (!confirm('確定刪除 ' + month + ' 的資料？')) return;
   db.snapshots = db.snapshots.filter(s => s.month !== month);
-  saveDB();
+  markUnsaved();
   renderHistory();
   renderOverview();
   showToast('已刪除 ' + month);
@@ -914,8 +969,8 @@ function saveMonth() {
   };
   const idx = db.snapshots.findIndex(s=>s.month===month);
   if (idx >= 0) db.snapshots[idx] = snap; else db.snapshots.push(snap);
-  saveDB();
-  showToast('已儲存 ' + month);
+  markUnsaved();
+  showToast('已更新 ' + month + '（記得儲存檔案）');
   renderOverview(); renderHistory();
 }
 
@@ -971,8 +1026,8 @@ function saveSettings() {
       study: { amount: +document.getElementById('cfg-goal-study').value, years: +document.getElementById('cfg-goal-study-yr').value },
     }
   };
-  saveDB();
-  showToast('設定已儲存');
+  markUnsaved();
+  showToast('設定已更新（記得儲存檔案）');
   renderOverview(); mkForecastCharts();
 }
 
@@ -993,30 +1048,6 @@ async function fetchRate() {
     document.getElementById('rate-source').textContent = '無法連線，請手動輸入';
   }
   btn.textContent = '即時抓取';
-}
-
-// ===== EXPORT / IMPORT =====
-function exportData() {
-  const blob = new Blob([JSON.stringify(db, null, 2)], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'fin_data_' + new Date().toISOString().slice(0,10) + '.json';
-  a.click();
-}
-
-function importData(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = ev => {
-    try {
-      db = JSON.parse(ev.target.result);
-      saveDB();
-      renderAll();
-      showToast('資料匯入成功');
-    } catch { alert('JSON 格式錯誤'); }
-  };
-  reader.readAsText(file);
 }
 
 // ===== NAVIGATION =====
@@ -1058,15 +1089,17 @@ function loadTheme() {
 }
 
 // ===== INIT =====
-function renderAll() { renderOverview(); }
-
 document.addEventListener('DOMContentLoaded', () => {
-  loadDB();
   loadTheme();
   const now = new Date();
   document.getElementById('nav-date').textContent = now.toLocaleDateString('zh-TW', { year:'numeric', month:'long', day:'numeric' });
   document.getElementById('input-month').value = now.toISOString().slice(0,7);
-  renderAll();
+  // 顯示歡迎頁，等使用者載入或新建資料
+});
+
+// 離開前提醒未儲存
+window.addEventListener('beforeunload', e => {
+  if (hasUnsaved) { e.preventDefault(); e.returnValue = ''; }
 });
 </script>
 </body>
