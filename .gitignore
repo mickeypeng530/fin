@@ -1,0 +1,6 @@
+*.xlsx
+*.xls
+*.csv
+fin_data_*.json
+.DS_Store
+Thumbs.db

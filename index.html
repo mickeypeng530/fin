@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>fin — 財務追蹤器</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f1117;
+    --card: #1a1d27;
+    --card2: #22263a;
+    --border: #2e3250;
+    --accent: #6c8fff;
+    --accent2: #ff6b8a;
+    --accent3: #43e8b0;
+    --accent4: #ffd166;
+    --text: #e8eaf6;
+    --muted: #8b91b5;
+    --ok: #43e8b0;
+    --warn: #ffd166;
+    --danger: #ff6b8a;
+  }
+  body.light {
+    --bg: #f0f2f8;
+    --card: #ffffff;
+    --card2: #e8eaf6;
+    --border: #d0d4e8;
+    --accent: #4a6ef5;
+    --text: #1a1d2e;
+    --muted: #6b7299;
+    --ok: #0fa871;
+    --warn: #c89000;
+    --danger: #d93a5a;
+  }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; transition: background 0.3s, color 0.3s; }
+
+  /* THEME TOGGLE */
+  .theme-btn { width: 40px; height: 22px; border-radius: 11px; border: none; cursor: pointer; position: relative; background: var(--card2); border: 1px solid var(--border); transition: background 0.3s; flex-shrink: 0; }
+  .theme-btn::after { content: ''; position: absolute; top: 2px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); transition: transform 0.3s; }
+  body.light .theme-btn::after { transform: translateX(17px); }
+  .theme-label { font-size: 0.8rem; color: var(--muted); }
+  .theme-row { display: flex; align-items: center; gap: 0.5rem; }
+
+  /* NAV */
+  nav { background: var(--card); border-bottom: 1px solid var(--border); padding: 0 2rem; display: flex; align-items: center; justify-content: space-between; height: 56px; position: sticky; top: 0; z-index: 100; }
+  .nav-logo { font-size: 1.3rem; font-weight: 700; color: var(--accent); letter-spacing: 2px; }
+  .nav-tabs { display: flex; gap: 0.2rem; }
+  .nav-tab { padding: 0.4rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem; color: var(--muted); border: none; background: none; transition: all 0.2s; }
+  .nav-tab:hover { color: var(--text); background: var(--card2); }
+  .nav-tab.active { color: var(--accent); background: rgba(108,143,255,0.12); }
+  .nav-date { font-size: 0.8rem; color: var(--muted); }
+
+  /* PAGES */
+  .page { display: none; padding: 2rem; max-width: 1200px; margin: 0 auto; }
+  .page.active { display: block; }
+
+  /* CARDS */
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; }
+  .card-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 0.75rem; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+  .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 1rem; }
+  @media(max-width:768px) { .grid-2,.grid-3,.grid-4 { grid-template-columns: 1fr; } }
+
+  /* STAT */
+  .stat-value { font-size: 2rem; font-weight: 700; }
+  .stat-sub { font-size: 0.82rem; color: var(--muted); margin-top: 0.25rem; }
+  .stat-delta { font-size: 0.85rem; margin-top: 0.3rem; }
+  .up { color: var(--ok); } .down { color: var(--danger); }
+
+  /* PROGRESS */
+  .goal-row { margin-bottom: 1.25rem; }
+  .goal-row:last-child { margin-bottom: 0; }
+  .goal-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.4rem; }
+  .goal-name { font-size: 0.9rem; font-weight: 600; }
+  .goal-status { font-size: 0.8rem; }
+  .goal-nums { font-size: 0.78rem; color: var(--muted); margin-bottom: 0.5rem; }
+  .progress-bar { height: 8px; background: var(--card2); border-radius: 4px; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
+
+  /* TABLE */
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th { text-align: left; padding: 0.6rem 0.75rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); border-bottom: 1px solid var(--border); }
+  td { padding: 0.6rem 0.75rem; border-bottom: 1px solid rgba(46,50,80,0.5); }
+  tr:last-child td { border-bottom: none; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* INPUT PAGE */
+  .input-section { margin-bottom: 2rem; }
+  .input-section h3 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
+  .input-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.75rem; }
+  .input-group { display: flex; flex-direction: column; gap: 0.35rem; }
+  .input-group label { font-size: 0.8rem; color: var(--muted); }
+  .input-group input { background: var(--card2); border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem 0.75rem; color: var(--text); font-size: 0.95rem; width: 100%; transition: border-color 0.2s; }
+  .input-group input:focus { outline: none; border-color: var(--accent); }
+  .input-unit { font-size: 0.75rem; color: var(--muted); }
+  .btn { padding: 0.65rem 1.5rem; border-radius: 8px; border: none; cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: all 0.2s; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { opacity: 0.85; }
+  .btn-secondary { background: var(--card2); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { border-color: var(--accent); }
+  .btn-row { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+  .save-msg { font-size: 0.85rem; color: var(--ok); }
+
+  /* HISTORY */
+  .month-badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 20px; font-size: 0.75rem; background: var(--card2); border: 1px solid var(--border); }
+  .selected-month { border-color: var(--accent); color: var(--accent); }
+
+  /* CHART WRAPPER */
+  .chart-wrap { position: relative; height: 260px; }
+
+  /* SECTION TITLE */
+  .section-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 1rem; }
+
+  /* BADGE */
+  .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+  .badge-ok { background: rgba(67,232,176,0.15); color: var(--ok); }
+  .badge-warn { background: rgba(255,209,102,0.15); color: var(--warn); }
+  .badge-danger { background: rgba(255,107,138,0.15); color: var(--danger); }
+
+  /* SETTINGS */
+  .settings-group { margin-bottom: 2rem; }
+  .settings-group h3 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
+  .settings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.75rem; }
+  .settings-row { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid rgba(46,50,80,0.4); }
+  .settings-row:last-child { border-bottom: none; }
+
+  /* TOAST */
+  #toast { position: fixed; bottom: 2rem; right: 2rem; background: var(--card); border: 1px solid var(--ok); color: var(--ok); padding: 0.75rem 1.25rem; border-radius: 10px; font-size: 0.9rem; opacity: 0; transform: translateY(10px); transition: all 0.3s; pointer-events: none; z-index: 999; }
+  #toast.show { opacity: 1; transform: translateY(0); }
+
+  .spacer { height: 1rem; }
+  .mt2 { margin-top: 2rem; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo">fin</div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="showPage('overview',this)">總覽</button>
+    <button class="nav-tab" onclick="showPage('input',this)">輸入</button>
+    <button class="nav-tab" onclick="showPage('history',this)">歷史</button>
+    <button class="nav-tab" onclick="showPage('forecast',this)">預測</button>
+    <button class="nav-tab" onclick="showPage('settings',this)">設定</button>
+  </div>
+  <div style="display:flex;align-items:center;gap:1rem">
+    <div class="nav-date" id="nav-date"></div>
+    <div class="theme-row">
+      <span class="theme-label" id="theme-label">🌙</span>
+      <button class="theme-btn" onclick="toggleTheme()" title="切換深色/淺色"></button>
+    </div>
+  </div>
+</nav>
+
+<!-- OVERVIEW PAGE -->
+<div class="page active" id="page-overview">
+  <div class="grid-4" style="margin-bottom:1rem">
+    <div class="card">
+      <div class="card-title">總資產（含準備金）</div>
+      <div class="stat-value" id="ov-total">—</div>
+      <div class="stat-sub">萬</div>
+      <div class="stat-delta" id="ov-total-delta"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">投資總資產</div>
+      <div class="stat-value" id="ov-invest">—</div>
+      <div class="stat-sub">萬</div>
+      <div class="stat-delta" id="ov-invest-delta"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">長期池</div>
+      <div class="stat-value" id="ov-long">—</div>
+      <div class="stat-sub">萬</div>
+      <div class="stat-delta" id="ov-long-delta"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">短中期池</div>
+      <div class="stat-value" id="ov-short">—</div>
+      <div class="stat-sub">萬</div>
+      <div class="stat-delta" id="ov-short-delta"></div>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-bottom:1rem">
+    <div class="card">
+      <div class="card-title">目標進度</div>
+      <div id="goal-progress-list"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">資產配置</div>
+      <div class="chart-wrap"><canvas id="chart-allocation"></canvas></div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">台股持倉</div>
+      <table id="table-tw"></table>
+    </div>
+    <div class="card">
+      <div class="card-title">美股持倉（美元）</div>
+      <table id="table-us"></table>
+    </div>
+  </div>
+</div>
+
+<!-- INPUT PAGE -->
+<div class="page" id="page-input">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
+      <div>
+        <div class="section-title">每月資產輸入</div>
+        <div style="font-size:0.85rem;color:var(--muted)">填入本月各標的最新金額，按儲存後自動記錄</div>
+      </div>
+      <div>
+        <label style="font-size:0.85rem;color:var(--muted);margin-right:0.5rem">輸入月份</label>
+        <input type="month" id="input-month" style="background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:0.4rem 0.75rem;color:var(--text);font-size:0.9rem">
+      </div>
+    </div>
+
+    <div class="input-section">
+      <h3>準備金</h3>
+      <div class="input-grid">
+        <div class="input-group">
+          <label>活存準備金 <span class="input-unit">（萬）</span></label>
+          <input type="number" id="in-reserve" placeholder="90" step="0.1">
+        </div>
+      </div>
+    </div>
+
+    <div class="input-section">
+      <h3>短中期池</h3>
+      <div class="input-grid">
+        <div class="input-group">
+          <label>富邦50 <span class="input-unit">（萬）</span></label>
+          <input type="number" id="in-st-fubong50" placeholder="0" step="0.1">
+        </div>
+        <div class="input-group">
+          <label>00720B <span class="input-unit">（萬）</span></label>
+          <input type="number" id="in-st-00720b" placeholder="0" step="0.1">
+        </div>
+        <div class="input-group">
+          <label>定存 <span class="input-unit">（萬）</span></label>
+          <input type="number" id="in-st-deposit" placeholder="0" step="0.1">
+        </div>
+      </div>
+    </div>
+
+    <div class="input-section">
+      <h3>長期池 — 台股（萬）</h3>
+      <div class="input-grid">
+        <div class="input-group">
+          <label>台灣50（市值）</label>
+          <input type="number" id="in-lt-tw50" placeholder="0" step="0.1">
+        </div>
+        <div class="input-group">
+          <label>富邦50（市值）</label>
+          <input type="number" id="in-lt-fb50" placeholder="0" step="0.1">
+        </div>
+        <div class="input-group">
+          <label>2330 台積電（市值）</label>
+          <input type="number" id="in-lt-2330" placeholder="0" step="0.1">
+        </div>
+        <div class="input-group">
+          <label>2646 星宇（市值）</label>
+          <input type="number" id="in-lt-2646" placeholder="0" step="0.1">
+        </div>
+        <div class="input-group">
+          <label>00720B（市值）</label>
+          <input type="number" id="in-lt-00720b" placeholder="0" step="0.1">
+        </div>
+      </div>
+    </div>
+
+    <div class="input-section">
+      <h3>長期池 — 美股（美元）</h3>
+      <div class="input-grid">
+        <div class="input-group">
+          <label>VTI</label>
+          <input type="number" id="in-us-vti" placeholder="0" step="1">
+        </div>
+        <div class="input-group">
+          <label>QQQ</label>
+          <input type="number" id="in-us-qqq" placeholder="0" step="1">
+        </div>
+        <div class="input-group">
+          <label>VPL</label>
+          <input type="number" id="in-us-vpl" placeholder="0" step="1">
+        </div>
+        <div class="input-group">
+          <label>VGK</label>
+          <input type="number" id="in-us-vgk" placeholder="0" step="1">
+        </div>
+        <div class="input-group">
+          <label>TSLA</label>
+          <input type="number" id="in-us-tsla" placeholder="0" step="1">
+        </div>
+        <div class="input-group">
+          <label>TSM</label>
+          <input type="number" id="in-us-tsm" placeholder="0" step="1">
+        </div>
+        <div class="input-group">
+          <label>NVDA</label>
+          <input type="number" id="in-us-nvda" placeholder="0" step="1">
+        </div>
+        <div class="input-group">
+          <label>VWO</label>
+          <input type="number" id="in-us-vwo" placeholder="0" step="1">
+        </div>
+        <div class="input-group">
+          <label>USD/TWD 匯率 <button onclick="fetchRate()" style="margin-left:0.4rem;padding:0.1rem 0.5rem;font-size:0.72rem;border-radius:4px;border:1px solid var(--border);background:var(--card2);color:var(--accent);cursor:pointer">即時抓取</button></label>
+          <input type="number" id="in-usdtwd" placeholder="32" step="0.01">
+          <span style="font-size:0.75rem;color:var(--muted)" id="rate-source"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="input-section">
+      <h3>長期池 — 現金（萬）</h3>
+      <div class="input-grid">
+        <div class="input-group">
+          <label>現金部位</label>
+          <input type="number" id="in-lt-cash" placeholder="5" step="0.1">
+        </div>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="saveMonth()">儲存本月資料</button>
+      <button class="btn btn-secondary" onclick="loadLatestToForm()">載入最新資料</button>
+      <span class="save-msg" id="save-msg"></span>
+    </div>
+  </div>
+</div>
+
+<!-- HISTORY PAGE -->
+<div class="page" id="page-history">
+  <div class="card" style="margin-bottom:1rem">
+    <div class="card-title">資產趨勢</div>
+    <div class="chart-wrap" style="height:280px"><canvas id="chart-history"></canvas></div>
+  </div>
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem">
+      <div class="card-title" style="margin-bottom:0">各月明細</div>
+      <div style="font-size:0.78rem;color:var(--muted)">點擊列展開持股明細</div>
+    </div>
+    <div style="max-height:500px;overflow-y:auto">
+      <table id="table-history">
+        <thead style="position:sticky;top:0;background:var(--card);z-index:1"><tr>
+          <th>月份</th>
+          <th class="num">總資產</th>
+          <th class="num">長期池</th>
+          <th class="num">短中期池</th>
+          <th class="num">準備金</th>
+          <th class="num">月增減</th>
+          <th></th>
+        </tr></thead>
+        <tbody id="tbody-history"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- FORECAST PAGE -->
+<div class="page" id="page-forecast">
+  <div class="grid-2" style="margin-bottom:1rem">
+    <div class="card">
+      <div class="card-title">短中期池預測（10年）</div>
+      <div class="chart-wrap" style="height:280px"><canvas id="chart-short-forecast"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">長期池預測（30年）</div>
+      <div class="chart-wrap" style="height:280px"><canvas id="chart-long-forecast"></canvas></div>
+    </div>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">短中期池逐年明細</div>
+      <table>
+        <thead><tr><th>年</th><th class="num">期初</th><th class="num">投入</th><th class="num">收益</th><th class="num">提領</th><th class="num">期末</th><th>事件</th></tr></thead>
+        <tbody id="tbody-short-forecast"></tbody>
+      </table>
+    </div>
+    <div class="card">
+      <div class="card-title">長期池逐年明細</div>
+      <div style="max-height:360px;overflow-y:auto">
+        <table>
+          <thead style="position:sticky;top:0;background:var(--card);z-index:1"><tr><th>年</th><th class="num">期初</th><th class="num">投入</th><th class="num">收益</th><th class="num">提領</th><th class="num">期末</th><th>事件</th></tr></thead>
+          <tbody id="tbody-long-forecast"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS PAGE -->
+<div class="page" id="page-settings">
+  <div class="card">
+    <div class="section-title" style="margin-bottom:1.5rem">系統設定</div>
+
+    <div class="settings-group">
+      <h3>每月投入</h3>
+      <div class="settings-grid">
+        <div class="input-group">
+          <label>短中期池（萬/月）</label>
+          <input type="number" id="cfg-monthly-short" step="0.5">
+        </div>
+        <div class="input-group">
+          <label>長期池（萬/月）</label>
+          <input type="number" id="cfg-monthly-long" step="0.5">
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-group">
+      <h3>報酬率假設</h3>
+      <div class="settings-grid">
+        <div class="input-group">
+          <label>短中期池年化報酬率（%）</label>
+          <input type="number" id="cfg-rate-short" step="0.1">
+        </div>
+        <div class="input-group">
+          <label>長期池年化報酬率（%）</label>
+          <input type="number" id="cfg-rate-long" step="0.1">
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-group">
+      <h3>財務目標</h3>
+      <div class="settings-grid">
+        <div class="input-group">
+          <label>小孩出生預備金（萬）</label>
+          <input type="number" id="cfg-goal-baby" step="10">
+        </div>
+        <div class="input-group">
+          <label>小孩出生年數（年後）</label>
+          <input type="number" id="cfg-goal-baby-yr" step="1">
+        </div>
+        <div class="input-group">
+          <label>換房頭期款（萬）</label>
+          <input type="number" id="cfg-goal-house" step="10">
+        </div>
+        <div class="input-group">
+          <label>換房年數（年後）</label>
+          <input type="number" id="cfg-goal-house-yr" step="1">
+        </div>
+        <div class="input-group">
+          <label>小孩留學基金（萬）</label>
+          <input type="number" id="cfg-goal-study" step="10">
+        </div>
+        <div class="input-group">
+          <label>留學年數（年後）</label>
+          <input type="number" id="cfg-goal-study-yr" step="1">
+        </div>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="saveSettings()">儲存設定</button>
+      <span class="save-msg" id="settings-save-msg"></span>
+    </div>
+  </div>
+
+  <div class="card mt2">
+    <div class="card-title">資料管理</div>
+    <div class="btn-row" style="margin-top:0.5rem">
+      <button class="btn btn-secondary" onclick="exportData()">匯出 JSON</button>
+      <button class="btn btn-secondary" onclick="document.getElementById('import-file').click()">匯入 JSON</button>
+      <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(event)">
+    </div>
+    <div style="margin-top:1rem;font-size:0.82rem;color:var(--muted)">
+      匯出的 JSON 檔案即為你的完整資料備份，可存入 Google Drive 保存。
+    </div>
+  </div>
+</div>
+
+<div id="toast">✓ 已儲存</div>
+
+<script>
+// ===== DEFAULT DATA =====
+const DEFAULT_SETTINGS = {
+  monthlyShort: 6,
+  monthlyLong: 7,
+  rateShort: 0.025,
+  rateLong: 0.06,
+  goals: {
+    baby: { amount: 200, years: 2 },
+    house: { amount: 1000, years: 10 },
+    study: { amount: 1800, years: 20 },
+  }
+};
+
+const SEED_SNAPSHOTS = [
+  {
+    month: "2026-02",
+    reserve: 90,
+    shortPool: { fubong50: 24, b00720b: 3, deposit: 11 },
+    longPoolTW: { tw50: 264, fb50: 54, n2330: 24, n2646: 27, b00720b: 6.7 },
+    longPoolUS: { vti: 7300, qqq: 7180, vpl: 4120, vgk: 4080, tsla: 3500, tsm: 3535, nvda: 2700, vwo: 2021 },
+    longCash: 4,
+    usdtwd: 32
+  },
+  {
+    month: "2026-03",
+    reserve: 90,
+    shortPool: { fubong50: 24, b00720b: 3, deposit: 12 },
+    longPoolTW: { tw50: 250, fb50: 51, n2330: 25, n2646: 25, b00720b: 13.4 },
+    longPoolUS: { vti: 6841, qqq: 6672, vpl: 3936, vgk: 3823, tsla: 3169, tsm: 3129, nvda: 2452, vwo: 1940 },
+    longCash: 5,
+    usdtwd: 32
+  },
+  {
+    month: "2026-04",
+    reserve: 90,
+    shortPool: { fubong50: 25, b00720b: 5, deposit: 12 },
+    longPoolTW: { tw50: 250, fb50: 51, n2330: 25, n2646: 25, b00720b: 13.4 },
+    longPoolUS: { vti: 6841, qqq: 6672, vpl: 3936, vgk: 3823, tsla: 3169, tsm: 3129, nvda: 2452, vwo: 1940 },
+    longCash: 5,
+    usdtwd: 32
+  }
+];
+
+// ===== DATA LAYER =====
+let db = { settings: { ...DEFAULT_SETTINGS }, snapshots: [] };
+
+function loadDB() {
+  try {
+    const raw = localStorage.getItem('fin_db');
+    if (raw) { db = JSON.parse(raw); }
+    else { db = { settings: { ...DEFAULT_SETTINGS }, snapshots: [...SEED_SNAPSHOTS] }; saveDB(); }
+  } catch(e) { db = { settings: { ...DEFAULT_SETTINGS }, snapshots: [...SEED_SNAPSHOTS] }; }
+}
+
+function saveDB() {
+  localStorage.setItem('fin_db', JSON.stringify(db));
+}
+
+// ===== COMPUTED =====
+function calcSnapshot(s) {
+  const usd = s.usdtwd || 32;
+  const shortTotal = (s.shortPool.fubong50||0) + (s.shortPool.b00720b||0) + (s.shortPool.deposit||0);
+  const twTotal = Object.values(s.longPoolTW||{}).reduce((a,b)=>a+b,0);
+  const usTotal = Object.values(s.longPoolUS||{}).reduce((a,b)=>a+b,0) * usd / 10000;
+  const longTotal = twTotal + usTotal + (s.longCash||0);
+  const invest = shortTotal + longTotal;
+  const total = invest + (s.reserve||0);
+  return { shortTotal, twTotal, usTotal, longTotal, invest, total };
+}
+
+// ===== FORECAST =====
+function calcShortForecast(startAmount, settings) {
+  const rows = [];
+  let val = startAmount;
+  const monthlyIn = settings.monthlyShort * 12;
+  const rate = settings.rateShort;
+  const goals = settings.goals;
+  rows.push({ yr: 0, start: val, invest: 0, yield: 0, withdraw: 0, beforeWithdraw: val, end: val, event: '' });
+  for (let y = 1; y <= 10; y++) {
+    const start = val;
+    const invest = monthlyIn;
+    const income = (start + invest) * rate;
+    let withdraw = 0, event = '';
+    if (y === goals.baby.years) { withdraw = goals.baby.amount; event = '小孩出生'; }
+    if (y === goals.house.years) { withdraw = goals.house.amount; event = '換房'; }
+    const beforeWithdraw = start + invest + income;
+    val = beforeWithdraw - withdraw;
+    rows.push({ yr: y, start, invest, yield: income, withdraw, beforeWithdraw, end: val, event });
+  }
+  return rows;
+}
+
+function calcLongForecast(startAmount, settings) {
+  const rows = [];
+  let val = startAmount;
+  const rate = settings.rateLong;
+  const goals = settings.goals;
+  // 10年後短中期池目標完成，短中期池月投入也轉入長期池
+  const monthlyAfter10 = settings.monthlyLong + settings.monthlyShort;
+  rows.push({ yr: 0, start: val, invest: 0, yield: 0, withdraw: 0, beforeWithdraw: val, end: val, event: '' });
+  for (let y = 1; y <= 30; y++) {
+    const start = val;
+    const invest = (y <= 10 ? settings.monthlyLong : monthlyAfter10) * 12;
+    const income = (start + invest) * rate;
+    let withdraw = 0, event = '';
+    if (y === goals.study.years) { withdraw = goals.study.amount; event = '留學'; }
+    if (y === 30) { event = '退休（剩餘）'; }
+    const beforeWithdraw = start + invest + income;
+    val = beforeWithdraw - withdraw;
+    rows.push({ yr: y, start, invest, yield: income, withdraw, beforeWithdraw, end: val, event });
+  }
+  return rows;
+}
+
+// ===== CHARTS =====
+let charts = {};
+function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+function themeColors() {
+  const isLight = document.body.classList.contains('light');
+  return {
+    tick: isLight ? '#555' : '#8b91b5',
+    grid: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(46,50,80,0.5)',
+    legend: isLight ? '#444' : '#8b91b5',
+  };
+}
+
+function mkAllocationChart() {
+  destroyChart('allocation');
+  const latest = db.snapshots[db.snapshots.length - 1];
+  if (!latest) return;
+  const c = calcSnapshot(latest);
+  const ctx = document.getElementById('chart-allocation').getContext('2d');
+  charts['allocation'] = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['長期池台股', '長期池美股', '長期池現金', '短中期池', '準備金'],
+      datasets: [{ data: [c.twTotal, c.usTotal, latest.longCash||0, c.shortTotal, latest.reserve||0],
+        backgroundColor: ['#6c8fff','#ff6b8a','#43e8b0','#ffd166','#a78bfa'],
+        borderWidth: 0 }]
+    },
+    options: { plugins: { legend: { position: 'bottom', labels: { color: themeColors().legend, font: { size: 11 }, padding: 12 } } }, cutout: '65%', responsive: true, maintainAspectRatio: false }
+  });
+}
+
+function mkHistoryChart() {
+  destroyChart('history');
+  const snaps = db.snapshots.sort((a,b)=>a.month.localeCompare(b.month));
+  const labels = snaps.map(s=>s.month);
+  const totals = snaps.map(s=>calcSnapshot(s).total);
+  const longs = snaps.map(s=>calcSnapshot(s).longTotal);
+  const shorts = snaps.map(s=>calcSnapshot(s).shortTotal);
+  const ctx = document.getElementById('chart-history').getContext('2d');
+  const tc = themeColors();
+  charts['history'] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: '總資產', data: totals, borderColor: '#6c8fff', backgroundColor: 'rgba(108,143,255,0.08)', tension: 0.3, fill: true, pointRadius: 5 },
+        { label: '長期池', data: longs, borderColor: '#43e8b0', tension: 0.3, pointRadius: 4 },
+        { label: '短中期池', data: shorts, borderColor: '#ffd166', tension: 0.3, pointRadius: 4 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: tc.legend, font: { size: 11 } } } },
+      scales: {
+        x: { ticks: { color: tc.tick }, grid: { color: tc.grid } },
+        y: { ticks: { color: tc.tick, callback: v => v + '萬' }, grid: { color: tc.grid } }
+      }
+    }
+  });
+}
+
+function mkForecastCharts() {
+  const latest = db.snapshots[db.snapshots.length - 1];
+  if (!latest) return;
+  const c = calcSnapshot(latest);
+  const shortRows = calcShortForecast(c.shortTotal, db.settings);
+  const longRows = calcLongForecast(c.longTotal, db.settings);
+
+  // Short forecast chart
+  destroyChart('short-forecast');
+  const ctx1 = document.getElementById('chart-short-forecast').getContext('2d');
+  const tc = themeColors();
+  charts['short-forecast'] = new Chart(ctx1, {
+    type: 'bar',
+    data: {
+      labels: shortRows.map(r=>'第'+r.yr+'年'),
+      datasets: [
+        { label: '期末金額', data: shortRows.map(r=>+r.end.toFixed(1)), backgroundColor: shortRows.map(r=>r.end<0?'rgba(255,107,138,0.7)':'rgba(108,143,255,0.7)'), borderWidth: 0 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: tc.tick, font:{size:10} }, grid: { color: tc.grid } },
+        y: { ticks: { color: tc.tick, callback: v => v + '萬' }, grid: { color: tc.grid } }
+      }
+    }
+  });
+
+  // Long forecast chart
+  destroyChart('long-forecast');
+  const ctx2 = document.getElementById('chart-long-forecast').getContext('2d');
+  charts['long-forecast'] = new Chart(ctx2, {
+    type: 'line',
+    data: {
+      labels: longRows.map(r=>'第'+r.yr+'年'),
+      datasets: [{ label: '長期池', data: longRows.map(r=>+r.end.toFixed(1)), borderColor: '#43e8b0', backgroundColor: 'rgba(67,232,176,0.08)', tension: 0.3, fill: true, pointRadius: 3 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: tc.tick, font:{size:10} }, grid: { color: tc.grid } },
+        y: { ticks: { color: tc.tick, callback: v => v + '萬' }, grid: { color: tc.grid } }
+      }
+    }
+  });
+
+  // Tables
+  const tb1 = document.getElementById('tbody-short-forecast');
+  const fmtW = v => v > 0 ? `<span style="color:var(--warn)">-${v.toFixed(1)}</span>` : '<span style="color:var(--muted)">—</span>';
+  tb1.innerHTML = shortRows.slice(1).map(r=>`
+    <tr>
+      <td>第${r.yr}年</td>
+      <td class="num">${r.start.toFixed(1)}</td>
+      <td class="num">${r.invest.toFixed(1)}</td>
+      <td class="num">${r.yield.toFixed(1)}</td>
+      <td class="num">${fmtW(r.withdraw)}</td>
+      <td class="num" style="color:${r.end<0?'var(--danger)':'var(--text)'}">${r.end.toFixed(1)}</td>
+      <td style="color:var(--warn);font-size:0.8rem">${r.event}</td>
+    </tr>`).join('');
+
+  const tb2 = document.getElementById('tbody-long-forecast');
+  tb2.innerHTML = longRows.slice(1).map(r=>`
+    <tr>
+      <td>第${r.yr}年</td>
+      <td class="num">${r.start.toFixed(1)}</td>
+      <td class="num">${r.invest.toFixed(1)}</td>
+      <td class="num">${r.yield.toFixed(1)}</td>
+      <td class="num">${fmtW(r.withdraw)}</td>
+      <td class="num">${r.end.toFixed(1)}</td>
+      <td style="color:var(--warn);font-size:0.8rem">${r.event}</td>
+    </tr>`).join('');
+}
+
+// ===== RENDER OVERVIEW =====
+function renderOverview() {
+  const snaps = [...db.snapshots].sort((a,b)=>a.month.localeCompare(b.month));
+  if (!snaps.length) return;
+  const latest = snaps[snaps.length - 1];
+  const prev = snaps.length > 1 ? snaps[snaps.length - 2] : null;
+  const c = calcSnapshot(latest);
+  const cp = prev ? calcSnapshot(prev) : null;
+
+  const fmt = (v, p=1) => Number(v.toFixed(p)).toLocaleString('en-US', {minimumFractionDigits: p, maximumFractionDigits: p});
+  const delta = (cur, prev, id) => {
+    if (!prev) { document.getElementById(id).innerHTML=''; return; }
+    const d = cur - prev;
+    const sign = d >= 0 ? '+' : '';
+    document.getElementById(id).innerHTML = `<span class="${d>=0?'up':'down'}">${sign}${fmt(d)} 萬 vs 上月</span>`;
+  };
+
+  document.getElementById('ov-total').textContent = fmt(c.total);
+  document.getElementById('ov-invest').textContent = fmt(c.invest);
+  document.getElementById('ov-long').textContent = fmt(c.longTotal);
+  document.getElementById('ov-short').textContent = fmt(c.shortTotal);
+  delta(c.total, cp?.total, 'ov-total-delta');
+  delta(c.invest, cp?.invest, 'ov-invest-delta');
+  delta(c.longTotal, cp?.longTotal, 'ov-long-delta');
+  delta(c.shortTotal, cp?.shortTotal, 'ov-short-delta');
+
+  // Goals
+  const s = db.settings;
+  const shortRows = calcShortForecast(c.shortTotal, s);
+  const longRows = calcLongForecast(c.longTotal, s);
+  // 用提領「之前」的金額來評估是否達到目標
+  const goalBabyForecast = shortRows[s.goals.baby.years]?.beforeWithdraw || 0;
+  const goalHouseForecast = shortRows[s.goals.house.years]?.beforeWithdraw || 0;
+  const goalStudyForecast = longRows[s.goals.study.years]?.beforeWithdraw || 0;
+
+  const goals = [
+    { name: '小孩出生預備金', target: s.goals.baby.amount, current: c.shortTotal, forecast: goalBabyForecast, yr: s.goals.baby.years, pool: '短中期池' },
+    { name: '換房頭期款', target: s.goals.house.amount, current: c.shortTotal, forecast: goalHouseForecast, yr: s.goals.house.years, pool: '短中期池' },
+    { name: '小孩留學基金', target: s.goals.study.amount, current: c.longTotal, forecast: goalStudyForecast, yr: s.goals.study.years, pool: '長期池' },
+  ];
+
+  const gl = document.getElementById('goal-progress-list');
+  gl.innerHTML = goals.map(g => {
+    const pct = Math.min(100, (g.forecast / g.target) * 100);
+    const ok = g.forecast >= g.target;
+    const color = ok ? 'var(--ok)' : pct > 60 ? 'var(--warn)' : 'var(--danger)';
+    const status = ok ? `<span class="badge badge-ok">✓ OK</span>` : `<span class="badge badge-warn">差 ${(g.target-g.forecast).toFixed(0)} 萬</span>`;
+    return `<div class="goal-row">
+      <div class="goal-header"><span class="goal-name">${g.name}</span>${status}</div>
+      <div class="goal-nums">${g.yr}年後預測 ${g.forecast.toFixed(0)} 萬 / 目標 ${g.target} 萬</div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${color}"></div></div>
+    </div>`;
+  }).join('');
+
+  // Tables
+  const usd = latest.usdtwd || 32;
+  const tw = latest.longPoolTW || {};
+  const us = latest.longPoolUS || {};
+  document.getElementById('table-tw').innerHTML = `
+    <thead><tr><th>標的</th><th class="num">市值（萬）</th></tr></thead>
+    <tbody>
+      ${Object.entries({台灣50:tw.tw50, 富邦50:tw.fb50, '2330 台積電':tw.n2330, '2646 星宇':tw.n2646, '00720B':tw.b00720b})
+        .map(([k,v])=>`<tr><td>${k}</td><td class="num">${(v||0).toFixed(1)}</td></tr>`).join('')}
+    </tbody>`;
+  document.getElementById('table-us').innerHTML = `
+    <thead><tr><th>標的</th><th class="num">美元</th><th class="num">台幣（萬）</th></tr></thead>
+    <tbody>
+      ${Object.entries({VTI:us.vti, QQQ:us.qqq, VPL:us.vpl, VGK:us.vgk, TSLA:us.tsla, TSM:us.tsm, NVDA:us.nvda, VWO:us.vwo})
+        .map(([k,v])=>`<tr><td>${k}</td><td class="num">${(v||0).toLocaleString()}</td><td class="num">${((v||0)*usd/10000).toFixed(1)}</td></tr>`).join('')}
+    </tbody>`;
+
+  mkAllocationChart();
+}
+
+// ===== RENDER HISTORY =====
+function renderHistory() {
+  const snaps = [...db.snapshots].sort((a,b)=>a.month.localeCompare(b.month));
+
+  const tbody = document.getElementById('tbody-history');
+  tbody.innerHTML = snaps.map((s,i)=>{
+    const c = calcSnapshot(s);
+    const prev = i > 0 ? calcSnapshot(snaps[i-1]) : null;
+    const d = prev ? c.total - prev.total : null;
+    const dStr = d !== null ? `<span class="${d>=0?'up':'down'}">${d>=0?'+':''}${d.toFixed(1)}</span>` : '—';
+    const usd = s.usdtwd || 32;
+    const tw = s.longPoolTW || {};
+    const us = s.longPoolUS || {};
+    const sp = s.shortPool || {};
+
+    // 展開明細
+    const detail = `<tr class="detail-row" id="detail-${s.month}" style="display:none">
+      <td colspan="7" style="padding:0.75rem 1rem;background:var(--card2);border-radius:8px">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1.5rem;font-size:0.82rem">
+          <div>
+            <div style="font-weight:600;margin-bottom:0.4rem;color:var(--accent)">短中期池</div>
+            <div style="display:flex;justify-content:space-between"><span>富邦50</span><span>${(sp.fubong50||0).toFixed(1)} 萬</span></div>
+            <div style="display:flex;justify-content:space-between"><span>00720B</span><span>${(sp.b00720b||0).toFixed(1)} 萬</span></div>
+            <div style="display:flex;justify-content:space-between"><span>定存</span><span>${(sp.deposit||0).toFixed(1)} 萬</span></div>
+          </div>
+          <div>
+            <div style="font-weight:600;margin-bottom:0.4rem;color:var(--accent)">長期池台股</div>
+            ${Object.entries({台灣50:tw.tw50,富邦50:tw.fb50,'2330':tw.n2330,'2646':tw.n2646,'00720B':tw.b00720b})
+              .map(([k,v])=>`<div style="display:flex;justify-content:space-between"><span>${k}</span><span>${(v||0).toFixed(1)} 萬</span></div>`).join('')}
+          </div>
+          <div>
+            <div style="font-weight:600;margin-bottom:0.4rem;color:var(--accent)">長期池美股 <span style="font-weight:400;color:var(--muted)">(USD→TWD: ${usd})</span></div>
+            ${Object.entries({VTI:us.vti,QQQ:us.qqq,VPL:us.vpl,VGK:us.vgk,TSLA:us.tsla,TSM:us.tsm,NVDA:us.nvda,VWO:us.vwo})
+              .map(([k,v])=>`<div style="display:flex;justify-content:space-between"><span>${k}</span><span>$${(v||0).toLocaleString()}</span></div>`).join('')}
+            <div style="display:flex;justify-content:space-between;margin-top:0.3rem;padding-top:0.3rem;border-top:1px solid var(--border)"><span>現金</span><span>${(s.longCash||0).toFixed(1)} 萬</span></div>
+          </div>
+        </div>
+      </td>
+    </tr>`;
+
+    return `<tr onclick="toggleDetail('${s.month}')" style="cursor:pointer;transition:background 0.2s" onmouseover="this.style.background='var(--card2)'" onmouseout="this.style.background=''">
+      <td><span style="margin-right:0.3rem;font-size:0.7rem;color:var(--muted)" id="arrow-${s.month}">▶</span>${s.month}</td>
+      <td class="num">${c.total.toFixed(1)}</td>
+      <td class="num">${c.longTotal.toFixed(1)}</td>
+      <td class="num">${c.shortTotal.toFixed(1)}</td>
+      <td class="num">${s.reserve||0}</td>
+      <td class="num">${dStr}</td>
+      <td><button onclick="event.stopPropagation();deleteSnapshot('${s.month}')" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:0.75rem;opacity:0.5" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.5">刪除</button></td>
+    </tr>${detail}`;
+  }).join('');
+
+  mkHistoryChart();
+}
+
+function toggleDetail(month) {
+  const row = document.getElementById('detail-' + month);
+  const arrow = document.getElementById('arrow-' + month);
+  if (row.style.display === 'none') {
+    row.style.display = '';
+    arrow.textContent = '▼';
+  } else {
+    row.style.display = 'none';
+    arrow.textContent = '▶';
+  }
+}
+
+// ===== DELETE SNAPSHOT =====
+function deleteSnapshot(month) {
+  if (!confirm('確定刪除 ' + month + ' 的資料？')) return;
+  db.snapshots = db.snapshots.filter(s => s.month !== month);
+  saveDB();
+  renderHistory();
+  renderOverview();
+  showToast('已刪除 ' + month);
+}
+
+// ===== INPUT =====
+function saveMonth() {
+  const month = document.getElementById('input-month').value;
+  if (!month) { alert('請選擇月份'); return; }
+  const snap = {
+    month,
+    reserve: +document.getElementById('in-reserve').value || 0,
+    shortPool: {
+      fubong50: +document.getElementById('in-st-fubong50').value || 0,
+      b00720b: +document.getElementById('in-st-00720b').value || 0,
+      deposit: +document.getElementById('in-st-deposit').value || 0,
+    },
+    longPoolTW: {
+      tw50: +document.getElementById('in-lt-tw50').value || 0,
+      fb50: +document.getElementById('in-lt-fb50').value || 0,
+      n2330: +document.getElementById('in-lt-2330').value || 0,
+      n2646: +document.getElementById('in-lt-2646').value || 0,
+      b00720b: +document.getElementById('in-lt-00720b').value || 0,
+    },
+    longPoolUS: {
+      vti: +document.getElementById('in-us-vti').value || 0,
+      qqq: +document.getElementById('in-us-qqq').value || 0,
+      vpl: +document.getElementById('in-us-vpl').value || 0,
+      vgk: +document.getElementById('in-us-vgk').value || 0,
+      tsla: +document.getElementById('in-us-tsla').value || 0,
+      tsm: +document.getElementById('in-us-tsm').value || 0,
+      nvda: +document.getElementById('in-us-nvda').value || 0,
+      vwo: +document.getElementById('in-us-vwo').value || 0,
+    },
+    longCash: +document.getElementById('in-lt-cash').value || 0,
+    usdtwd: +document.getElementById('in-usdtwd').value || 32,
+  };
+  const idx = db.snapshots.findIndex(s=>s.month===month);
+  if (idx >= 0) db.snapshots[idx] = snap; else db.snapshots.push(snap);
+  saveDB();
+  showToast('已儲存 ' + month);
+  renderOverview(); renderHistory();
+}
+
+function loadLatestToForm() {
+  const snaps = [...db.snapshots].sort((a,b)=>a.month.localeCompare(b.month));
+  const s = snaps[snaps.length-1];
+  if (!s) return;
+  document.getElementById('in-reserve').value = s.reserve||'';
+  document.getElementById('in-st-fubong50').value = s.shortPool?.fubong50||'';
+  document.getElementById('in-st-00720b').value = s.shortPool?.b00720b||'';
+  document.getElementById('in-st-deposit').value = s.shortPool?.deposit||'';
+  document.getElementById('in-lt-tw50').value = s.longPoolTW?.tw50||'';
+  document.getElementById('in-lt-fb50').value = s.longPoolTW?.fb50||'';
+  document.getElementById('in-lt-2330').value = s.longPoolTW?.n2330||'';
+  document.getElementById('in-lt-2646').value = s.longPoolTW?.n2646||'';
+  document.getElementById('in-lt-00720b').value = s.longPoolTW?.b00720b||'';
+  document.getElementById('in-us-vti').value = s.longPoolUS?.vti||'';
+  document.getElementById('in-us-qqq').value = s.longPoolUS?.qqq||'';
+  document.getElementById('in-us-vpl').value = s.longPoolUS?.vpl||'';
+  document.getElementById('in-us-vgk').value = s.longPoolUS?.vgk||'';
+  document.getElementById('in-us-tsla').value = s.longPoolUS?.tsla||'';
+  document.getElementById('in-us-tsm').value = s.longPoolUS?.tsm||'';
+  document.getElementById('in-us-nvda').value = s.longPoolUS?.nvda||'';
+  document.getElementById('in-us-vwo').value = s.longPoolUS?.vwo||'';
+  document.getElementById('in-lt-cash').value = s.longCash||'';
+  document.getElementById('in-usdtwd').value = s.usdtwd||32;
+}
+
+// ===== SETTINGS =====
+function renderSettings() {
+  const s = db.settings;
+  document.getElementById('cfg-monthly-short').value = s.monthlyShort;
+  document.getElementById('cfg-monthly-long').value = s.monthlyLong;
+  document.getElementById('cfg-rate-short').value = (s.rateShort*100).toFixed(1);
+  document.getElementById('cfg-rate-long').value = (s.rateLong*100).toFixed(1);
+  document.getElementById('cfg-goal-baby').value = s.goals.baby.amount;
+  document.getElementById('cfg-goal-baby-yr').value = s.goals.baby.years;
+  document.getElementById('cfg-goal-house').value = s.goals.house.amount;
+  document.getElementById('cfg-goal-house-yr').value = s.goals.house.years;
+  document.getElementById('cfg-goal-study').value = s.goals.study.amount;
+  document.getElementById('cfg-goal-study-yr').value = s.goals.study.years;
+}
+
+function saveSettings() {
+  db.settings = {
+    monthlyShort: +document.getElementById('cfg-monthly-short').value,
+    monthlyLong: +document.getElementById('cfg-monthly-long').value,
+    rateShort: +document.getElementById('cfg-rate-short').value / 100,
+    rateLong: +document.getElementById('cfg-rate-long').value / 100,
+    goals: {
+      baby: { amount: +document.getElementById('cfg-goal-baby').value, years: +document.getElementById('cfg-goal-baby-yr').value },
+      house: { amount: +document.getElementById('cfg-goal-house').value, years: +document.getElementById('cfg-goal-house-yr').value },
+      study: { amount: +document.getElementById('cfg-goal-study').value, years: +document.getElementById('cfg-goal-study-yr').value },
+    }
+  };
+  saveDB();
+  showToast('設定已儲存');
+  renderOverview(); mkForecastCharts();
+}
+
+// ===== LIVE RATE =====
+async function fetchRate() {
+  const btn = event.target;
+  btn.textContent = '抓取中...';
+  try {
+    const res = await fetch('https://open.er-api.com/v6/latest/USD');
+    const data = await res.json();
+    const rate = data.rates?.TWD;
+    if (rate) {
+      document.getElementById('in-usdtwd').value = rate.toFixed(2);
+      document.getElementById('rate-source').textContent = '來源：exchangerate-api（' + new Date().toLocaleTimeString('zh-TW') + '）';
+      showToast('匯率已更新：' + rate.toFixed(2));
+    }
+  } catch(e) {
+    document.getElementById('rate-source').textContent = '無法連線，請手動輸入';
+  }
+  btn.textContent = '即時抓取';
+}
+
+// ===== EXPORT / IMPORT =====
+function exportData() {
+  const blob = new Blob([JSON.stringify(db, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'fin_data_' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+}
+
+function importData(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      db = JSON.parse(ev.target.result);
+      saveDB();
+      renderAll();
+      showToast('資料匯入成功');
+    } catch { alert('JSON 格式錯誤'); }
+  };
+  reader.readAsText(file);
+}
+
+// ===== NAVIGATION =====
+function showPage(id, btn) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  if (btn) btn.classList.add('active');
+  if (id==='overview') { renderOverview(); }
+  if (id==='history') { renderHistory(); }
+  if (id==='forecast') { mkForecastCharts(); }
+  if (id==='settings') { renderSettings(); }
+  if (id==='input') { loadLatestToForm(); }
+}
+
+// ===== TOAST =====
+function showToast(msg='已儲存') {
+  const t = document.getElementById('toast');
+  t.textContent = '✓ ' + msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2500);
+}
+
+// ===== THEME =====
+function toggleTheme() {
+  const isLight = document.body.classList.toggle('light');
+  document.getElementById('theme-label').textContent = isLight ? '☀️' : '🌙';
+  localStorage.setItem('fin_theme', isLight ? 'light' : 'dark');
+  // 重繪圖表讓顏色正確更新
+  setTimeout(() => { renderOverview(); }, 50);
+}
+
+function loadTheme() {
+  const saved = localStorage.getItem('fin_theme');
+  if (saved === 'light') {
+    document.body.classList.add('light');
+    document.getElementById('theme-label').textContent = '☀️';
+  }
+}
+
+// ===== INIT =====
+function renderAll() { renderOverview(); }
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadDB();
+  loadTheme();
+  const now = new Date();
+  document.getElementById('nav-date').textContent = now.toLocaleDateString('zh-TW', { year:'numeric', month:'long', day:'numeric' });
+  document.getElementById('input-month').value = now.toISOString().slice(0,7);
+  renderAll();
+});
+</script>
+</body>
+</html>
