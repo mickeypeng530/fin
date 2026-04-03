@@ -366,19 +366,19 @@
     </div>
 
     <div class="input-section">
-      <h3>長期池 — 美股（美元）</h3>
+      <h3>長期池 — 美股</h3>
       <div class="input-grid">
         <div class="input-group" style="background:var(--card2);padding:0.75rem;border-radius:8px;border:1px solid var(--accent)">
-          <label style="color:var(--accent);font-weight:600">美股合計（美元）</label>
-          <input type="number" id="in-lt-us-total" placeholder="0" step="1" oninput="updateSums()">
+          <label style="color:var(--accent);font-weight:600">美股合計（萬台幣）</label>
+          <input type="number" id="in-lt-us-total" placeholder="0" step="0.1" oninput="updateSums()">
         </div>
         <div class="input-group">
           <label>USD/TWD 匯率 <button onclick="fetchRate()" style="margin-left:0.4rem;padding:0.1rem 0.5rem;font-size:0.72rem;border-radius:4px;border:1px solid var(--border);background:var(--card2);color:var(--accent);cursor:pointer">即時抓取</button></label>
-          <input type="number" id="in-usdtwd" placeholder="32" step="0.01" oninput="updateSums()">
+          <input type="number" id="in-usdtwd" placeholder="32" step="0.01">
           <span style="font-size:0.75rem;color:var(--muted)" id="rate-source"></span>
         </div>
       </div>
-      <div style="margin-top:1rem;font-size:0.8rem;color:var(--muted)">▼ 個股明細（記錄用，不影響合計）</div>
+      <div style="margin-top:1rem;font-size:0.8rem;color:var(--muted)">▼ 個股明細（記錄用，美元）</div>
       <div class="input-grid" style="margin-top:0.5rem;opacity:0.85">
         <div class="input-group">
           <label>VTI</label>
@@ -896,12 +896,18 @@ function calcSnapshot(s) {
   const shortTotal = (s.shortPool?.fubong50||0) + (s.shortPool?.b00720b||0) + (s.shortPool?.deposit||0);
   // 使用手動輸入的合計，如果沒有則用舊版的個股加總（向下相容）
   const twTotal = s.longPoolTW?.total || Object.entries(s.longPoolTW||{}).filter(([k])=>k!=='total').reduce((a,[,v])=>a+(v||0),0);
-  const usTotal = s.longPoolUS?.total || Object.entries(s.longPoolUS||{}).filter(([k])=>k!=='total').reduce((a,[,v])=>a+(v||0),0);
-  const usInTwd = usTotal * usd / 10000;
+  // 美股 total 已經是萬（台幣），如果沒有 total 則用個股加總再換算
+  let usInTwd;
+  if (s.longPoolUS?.total !== undefined) {
+    usInTwd = s.longPoolUS.total; // 已經是萬台幣
+  } else {
+    const usSum = Object.entries(s.longPoolUS||{}).filter(([k])=>k!=='total').reduce((a,[,v])=>a+(v||0),0);
+    usInTwd = usSum * usd / 10000; // 美元換算成萬台幣
+  }
   const longTotal = twTotal + usInTwd + (s.longCash||0);
   const invest = shortTotal + longTotal;
   const total = invest + (s.reserve||0);
-  return { shortTotal, twTotal, usTotal, usInTwd, longTotal, invest, total };
+  return { shortTotal, twTotal, usInTwd, longTotal, invest, total };
 }
 
 // ===== CONCENTRATION CALCULATION =====
@@ -1625,17 +1631,13 @@ function updateSums() {
     (+document.getElementById('in-st-deposit').value || 0);
   document.getElementById('sum-short').textContent = `合計: ${shortSum.toFixed(1)} 萬`;
   
-  // 長期池：用手動輸入的合計
+  // 長期池：用手動輸入的合計（都是萬台幣）
   const twTotal = +document.getElementById('in-lt-tw-total').value || 0;
-  const usTotal = +document.getElementById('in-lt-us-total').value || 0;
-  const usdtwd = +document.getElementById('in-usdtwd').value || 32;
+  const usTotal = +document.getElementById('in-lt-us-total').value || 0; // 萬台幣
   const cash = +document.getElementById('in-lt-cash').value || 0;
   
-  // 美股換算台幣
-  const usTotalTwd = usTotal * usdtwd / 10000;
-  
   // 長期池總計
-  const longTotal = twTotal + usTotalTwd + cash;
+  const longTotal = twTotal + usTotal + cash;
   document.getElementById('sum-long-total').textContent = `${longTotal.toFixed(1)} 萬`;
 }
 
