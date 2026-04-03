@@ -497,7 +497,7 @@
     </div>
     <div class="card">
       <div class="card-title">長期池逐年明細</div>
-      <div style="max-height:360px;overflow-y:auto">
+      <div style="max-height:500px;overflow-y:auto">
         <table>
           <thead style="position:sticky;top:0;background:var(--card);z-index:1"><tr><th>年</th><th class="num">期初</th><th class="num">投入</th><th class="num">收益</th><th class="num">提領</th><th class="num">期末</th><th>事件</th></tr></thead>
           <tbody id="tbody-long-forecast"></tbody>
@@ -990,14 +990,16 @@ function calcShortForecast(startAmount, settings) {
   const monthlyIn = settings.monthlyShort * 12;
   const rate = settings.rateShort;
   const goals = settings.goals;
-  rows.push({ yr: 0, start: val, invest: 0, yield: 0, withdraw: 0, beforeWithdraw: val, end: val, event: '' });
-  for (let y = 1; y <= 10; y++) {
+  // 第1年 = 今年（起點），第2年開始才有投入
+  rows.push({ yr: 1, start: val, invest: 0, yield: 0, withdraw: 0, beforeWithdraw: val, end: val, event: '起點' });
+  for (let y = 2; y <= 11; y++) {
     const start = val;
     const invest = monthlyIn;
     const income = (start + invest) * rate;
     let withdraw = 0, event = '';
-    if (y === goals.baby.years) { withdraw = goals.baby.amount; event = '小孩出生'; }
-    if (y === goals.house.years) { withdraw = goals.house.amount; event = '換房'; }
+    // 目標年數 +1（因為第1年是起點）
+    if (y === goals.baby.years + 1) { withdraw = goals.baby.amount; event = '小孩出生'; }
+    if (y === goals.house.years + 1) { withdraw = goals.house.amount; event = '換房'; }
     const beforeWithdraw = start + invest + income;
     val = beforeWithdraw - withdraw;
     rows.push({ yr: y, start, invest, yield: income, withdraw, beforeWithdraw, end: val, event });
@@ -1011,14 +1013,16 @@ function calcLongForecast(startAmount, settings) {
   const rate = settings.rateLong;
   const goals = settings.goals;
   const monthlyAfter10 = settings.monthlyLong + settings.monthlyShort;
-  rows.push({ yr: 0, start: val, invest: 0, yield: 0, withdraw: 0, beforeWithdraw: val, end: val, event: '' });
-  for (let y = 1; y <= 30; y++) {
+  // 第1年 = 今年（起點），第2年開始才有投入
+  rows.push({ yr: 1, start: val, invest: 0, yield: 0, withdraw: 0, beforeWithdraw: val, end: val, event: '起點' });
+  for (let y = 2; y <= 31; y++) {
     const start = val;
-    const invest = (y <= 10 ? settings.monthlyLong : monthlyAfter10) * 12;
+    // 第11年之後（原本的第10年之後），短中期池投入也轉入
+    const invest = (y <= 11 ? settings.monthlyLong : monthlyAfter10) * 12;
     const income = (start + invest) * rate;
     let withdraw = 0, event = '';
-    if (y === goals.study.years) { withdraw = goals.study.amount; event = '留學'; }
-    if (y === 30) { event = '退休（剩餘）'; }
+    if (y === goals.study.years + 1) { withdraw = goals.study.amount; event = '留學'; }
+    if (y === 31) { event = '退休（剩餘）'; }
     const beforeWithdraw = start + invest + income;
     val = beforeWithdraw - withdraw;
     rows.push({ yr: y, start, invest, yield: income, withdraw, beforeWithdraw, end: val, event });
@@ -1096,7 +1100,6 @@ function mkForecastCharts() {
   // 取得起始年份（從第一筆資料的月份）
   const snaps = [...db.snapshots].sort((a,b)=>a.month.localeCompare(b.month));
   const startYear = snaps.length > 0 ? parseInt(snaps[0].month.slice(0,4)) : new Date().getFullYear();
-  const fmtYear = yr => yr === 0 ? `現在（${startYear}）` : `第${yr}年（${startYear + yr}）`;
 
   destroyChart('short-forecast');
   const ctx1 = document.getElementById('chart-short-forecast').getContext('2d');
@@ -1104,7 +1107,7 @@ function mkForecastCharts() {
   charts['short-forecast'] = new Chart(ctx1, {
     type: 'bar',
     data: {
-      labels: shortRows.map(r=> r.yr === 0 ? startYear : startYear + r.yr),
+      labels: shortRows.map(r=> startYear + r.yr - 1),
       datasets: [
         { label: '期末金額', data: shortRows.map(r=>+r.end.toFixed(1)), backgroundColor: shortRows.map(r=>r.end<0?'rgba(255,107,138,0.7)':'rgba(108,143,255,0.7)'), borderWidth: 0 },
       ]
@@ -1124,7 +1127,7 @@ function mkForecastCharts() {
   charts['long-forecast'] = new Chart(ctx2, {
     type: 'line',
     data: {
-      labels: longRows.map(r=> r.yr === 0 ? startYear : startYear + r.yr),
+      labels: longRows.map(r=> startYear + r.yr - 1),
       datasets: [{ label: '長期池', data: longRows.map(r=>+r.end.toFixed(1)), borderColor: '#43e8b0', backgroundColor: 'rgba(67,232,176,0.08)', tension: 0.3, fill: true, pointRadius: 3 }]
     },
     options: {
@@ -1139,24 +1142,24 @@ function mkForecastCharts() {
 
   const tb1 = document.getElementById('tbody-short-forecast');
   const fmtW = v => v > 0 ? `<span style="color:var(--warn)">-${v.toFixed(1)}</span>` : '<span style="color:var(--muted)">—</span>';
-  tb1.innerHTML = shortRows.slice(1).map(r=>`
-    <tr>
-      <td>第${r.yr}年（${startYear + r.yr}）</td>
+  tb1.innerHTML = shortRows.map(r=>`
+    <tr${r.yr === 1 ? ' style="background:var(--card2)"' : ''}>
+      <td>第${r.yr}年（${startYear + r.yr - 1}）</td>
       <td class="num">${r.start.toFixed(1)}</td>
-      <td class="num">${r.invest.toFixed(1)}</td>
-      <td class="num">${r.yield.toFixed(1)}</td>
+      <td class="num">${r.invest > 0 ? r.invest.toFixed(1) : '—'}</td>
+      <td class="num">${r.yield > 0 ? r.yield.toFixed(1) : '—'}</td>
       <td class="num">${fmtW(r.withdraw)}</td>
       <td class="num" style="color:${r.end<0?'var(--danger)':'var(--text)'}">${r.end.toFixed(1)}</td>
       <td style="color:var(--warn);font-size:0.8rem">${r.event}</td>
     </tr>`).join('');
 
   const tb2 = document.getElementById('tbody-long-forecast');
-  tb2.innerHTML = longRows.slice(1).map(r=>`
-    <tr>
-      <td>第${r.yr}年（${startYear + r.yr}）</td>
+  tb2.innerHTML = longRows.map(r=>`
+    <tr${r.yr === 1 ? ' style="background:var(--card2)"' : ''}>
+      <td>第${r.yr}年（${startYear + r.yr - 1}）</td>
       <td class="num">${r.start.toFixed(1)}</td>
-      <td class="num">${r.invest.toFixed(1)}</td>
-      <td class="num">${r.yield.toFixed(1)}</td>
+      <td class="num">${r.invest > 0 ? r.invest.toFixed(1) : '—'}</td>
+      <td class="num">${r.yield > 0 ? r.yield.toFixed(1) : '—'}</td>
       <td class="num">${fmtW(r.withdraw)}</td>
       <td class="num">${r.end.toFixed(1)}</td>
       <td style="color:var(--warn);font-size:0.8rem">${r.event}</td>
@@ -1196,10 +1199,11 @@ function renderOverview() {
   const s = db.settings;
   const shortRows = calcShortForecast(c.shortTotal, s);
   const longRows = calcLongForecast(c.longTotal, s);
-  const goalBabyForecast = shortRows[s.goals.baby.years]?.beforeWithdraw || 0;
-  const goalHouseForecast = shortRows[s.goals.house.years]?.beforeWithdraw || 0;
-  const goalStudyForecast = longRows[s.goals.study.years]?.beforeWithdraw || 0;
-  const goalRetireForecast = longRows[30]?.end || 0; // 30年後剩餘
+  // 目標年數 +1 來取得正確的 row（因為第1年是起點）
+  const goalBabyForecast = shortRows.find(r => r.yr === s.goals.baby.years + 1)?.beforeWithdraw || 0;
+  const goalHouseForecast = shortRows.find(r => r.yr === s.goals.house.years + 1)?.beforeWithdraw || 0;
+  const goalStudyForecast = longRows.find(r => r.yr === s.goals.study.years + 1)?.beforeWithdraw || 0;
+  const goalRetireForecast = longRows.find(r => r.yr === 31)?.end || 0; // 第31年（30年後）
 
   const goals = [
     { name: '小孩出生預備金', target: s.goals.baby.amount, current: c.shortTotal, forecast: goalBabyForecast, yr: s.goals.baby.years, pool: '短中期池' },
