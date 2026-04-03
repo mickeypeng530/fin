@@ -245,13 +245,23 @@
     </div>
   </div>
 
-  <div class="grid-2">
+  <!-- 長期池配置比例 -->
+  <div class="card" style="margin-bottom:1rem">
+    <div class="card-title">長期池配置</div>
+    <div id="long-pool-allocation" style="display:flex;gap:2rem;flex-wrap:wrap"></div>
+  </div>
+
+  <div class="grid-3" style="grid-template-columns: 1fr 1.2fr 1.2fr">
     <div class="card">
-      <div class="card-title">台股持倉 <span id="tw-total-return" style="font-size:0.85rem;margin-left:0.5rem"></span></div>
+      <div class="card-title">短中期池</div>
+      <table id="table-short"></table>
+    </div>
+    <div class="card">
+      <div class="card-title">長期池台股</div>
       <table id="table-tw"></table>
     </div>
     <div class="card">
-      <div class="card-title">美股持倉（美元）<span id="us-total-return" style="font-size:0.85rem;margin-left:0.5rem"></span></div>
+      <div class="card-title">長期池美股（美元）</div>
       <table id="table-us"></table>
     </div>
   </div>
@@ -345,7 +355,7 @@
           <div class="price-info" id="price-lt-00929"></div>
         </div>
         <div class="input-group">
-          <label>00955</label>
+          <label>00955 中信日本</label>
           <input type="number" id="in-lt-00955" placeholder="0" step="0.1" data-stock="00955" data-market="TW">
           <div class="price-info" id="price-lt-00955"></div>
         </div>
@@ -636,7 +646,7 @@ const STOCK_DEFS = {
   '0056': { name: '高股息', market: 'TW', tsmcWeight: 0.05, techWeight: 0.15 },
   '00720B': { name: '元大投資級公司債', market: 'TW', tsmcWeight: 0, techWeight: 0 },
   '00929': { name: '復華台灣科技優息', market: 'TW', tsmcWeight: 0.15, techWeight: 0.80 },
-  '00955': { name: '台新臺灣IC設計', market: 'TW', tsmcWeight: 0.10, techWeight: 0.95 },
+  '00955': { name: '中信日本', market: 'TW', tsmcWeight: 0, techWeight: 0.30 },
   '2330': { name: '台積電', market: 'TW', tsmcWeight: 1.0, techWeight: 1.0 },
   '2646': { name: '星宇航空', market: 'TW', tsmcWeight: 0, techWeight: 0 },
   // US stocks
@@ -1048,11 +1058,17 @@ function mkAllocationChart() {
   if (!latest) return;
   const c = calcSnapshot(latest);
   const ctx = document.getElementById('chart-allocation').getContext('2d');
+  const allocData = [c.twTotal, c.usInTwd, latest.longCash||0, c.shortTotal, latest.reserve||0];
+  const allocTotal = allocData.reduce((a,b) => a+b, 0);
+  const allocLabels = ['長期池台股', '長期池美股', '長期池現金', '短中期池', '準備金'].map((label, i) => {
+    const pct = allocTotal > 0 ? (allocData[i] / allocTotal * 100).toFixed(1) : 0;
+    return `${label} ${pct}%`;
+  });
   charts['allocation'] = new Chart(ctx, {
     type: 'doughnut',
     data: {
-      labels: ['長期池台股', '長期池美股', '長期池現金', '短中期池', '準備金'],
-      datasets: [{ data: [c.twTotal, c.usInTwd, latest.longCash||0, c.shortTotal, latest.reserve||0],
+      labels: allocLabels,
+      datasets: [{ data: allocData,
         backgroundColor: ['#6c8fff','#ff6b8a','#43e8b0','#ffd166','#a78bfa'],
         borderWidth: 0 }]
     },
@@ -1303,18 +1319,6 @@ function renderHoldingTables(latest) {
     return `<span class="${cls}">${sign}${ret.pct.toFixed(1)}%</span>`;
   };
   
-  // Taiwan stocks table
-  const twStocks = [
-    { name: '0050 台灣50', key: 'tw50', symbol: '0050', val: tw.tw50 },
-    { name: '006208 富邦50', key: 'fb50', symbol: '006208', val: tw.fb50 },
-    { name: '0056 高股息', key: 'n0056', symbol: '0056', val: tw.n0056 },
-    { name: '00929', key: 'n00929', symbol: '00929', val: tw.n00929 },
-    { name: '00955', key: 'n00955', symbol: '00955', val: tw.n00955 },
-    { name: '2330 台積電', key: 'n2330', symbol: '2330', val: tw.n2330 },
-    { name: '2646 星宇', key: 'n2646', symbol: '2646', val: tw.n2646 },
-    { name: '00720B', key: 'b00720b', symbol: '00720B', val: tw.b00720b },
-  ].filter(s => s.val > 0);
-  
   // Calculate shares from cached prices
   const getShares = (symbol, marketVal, market) => {
     const price = cachedPrices[symbol]?.price || db.prices?.[symbol]?.price;
@@ -1325,8 +1329,71 @@ function renderHoldingTables(latest) {
       return marketVal / price;
     }
   };
+
+  // ===== 長期池配置比例 =====
+  const twTotal = latest.longPoolTW?.total || 0;
+  const usTotal = latest.longPoolUS?.total || 0;
+  const longTotal = twTotal + usTotal + (latest.longCash || 0);
+  const twPct = longTotal > 0 ? (twTotal / longTotal * 100).toFixed(1) : 0;
+  const usPct = longTotal > 0 ? (usTotal / longTotal * 100).toFixed(1) : 0;
+  const cashPct = longTotal > 0 ? ((latest.longCash || 0) / longTotal * 100).toFixed(1) : 0;
   
-  let twTotalReturn = { gain: 0, cost: 0 };
+  const twTarget = '60-70%';
+  const usTarget = '30-35%';
+  const twStatus = twTotal / longTotal * 100 > 70 ? 'color:var(--warn)' : twTotal / longTotal * 100 < 60 ? 'color:var(--accent)' : 'color:var(--ok)';
+  const usStatus = usTotal / longTotal * 100 < 30 ? 'color:var(--warn)' : usTotal / longTotal * 100 > 35 ? 'color:var(--accent)' : 'color:var(--ok)';
+  
+  document.getElementById('long-pool-allocation').innerHTML = `
+    <div style="display:flex;align-items:center;gap:0.75rem">
+      <span style="font-weight:600">台股</span>
+      <span style="font-size:1.3rem;${twStatus}">${twPct}%</span>
+      <span style="color:var(--muted);font-size:0.85rem">${twTotal.toFixed(0)} 萬</span>
+      <span style="color:var(--muted);font-size:0.8rem">目標 ${twTarget}</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:0.75rem">
+      <span style="font-weight:600">美股</span>
+      <span style="font-size:1.3rem;${usStatus}">${usPct}%</span>
+      <span style="color:var(--muted);font-size:0.85rem">${usTotal.toFixed(0)} 萬</span>
+      <span style="color:var(--muted);font-size:0.8rem">目標 ${usTarget}</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:0.75rem">
+      <span style="font-weight:600">現金</span>
+      <span style="font-size:1.3rem">${cashPct}%</span>
+      <span style="color:var(--muted);font-size:0.85rem">${(latest.longCash || 0).toFixed(0)} 萬</span>
+    </div>
+  `;
+
+  // ===== 短中期池表格 =====
+  const shortItems = [
+    { name: '富邦50', val: sp.fubong50 },
+    { name: '00720B', val: sp.b00720b },
+    { name: '定存', val: sp.deposit },
+  ].filter(s => s.val > 0);
+  
+  document.getElementById('table-short').innerHTML = `
+    <thead><tr><th>標的</th><th class="num">市值（萬）</th></tr></thead>
+    <tbody>
+      ${shortItems.map(s => `<tr>
+        <td>${s.name}</td>
+        <td class="num">${(s.val||0).toFixed(1)}</td>
+      </tr>`).join('')}
+      <tr style="font-weight:600;border-top:1px solid var(--border)">
+        <td>合計</td>
+        <td class="num">${c.shortTotal.toFixed(1)}</td>
+      </tr>
+    </tbody>`;
+  
+  // ===== 長期池台股表格 =====
+  const twStocks = [
+    { name: '0050 台灣50', key: 'tw50', symbol: '0050', val: tw.tw50 },
+    { name: '006208 富邦50', key: 'fb50', symbol: '006208', val: tw.fb50 },
+    { name: '0056 高股息', key: 'n0056', symbol: '0056', val: tw.n0056 },
+    { name: '00929', key: 'n00929', symbol: '00929', val: tw.n00929 },
+    { name: '00955 中信日本', key: 'n00955', symbol: '00955', val: tw.n00955 },
+    { name: '2330 台積電', key: 'n2330', symbol: '2330', val: tw.n2330 },
+    { name: '2646 星宇', key: 'n2646', symbol: '2646', val: tw.n2646 },
+    { name: '00720B', key: 'b00720b', symbol: '00720B', val: tw.b00720b },
+  ].filter(s => s.val > 0);
   
   document.getElementById('table-tw').innerHTML = `
     <thead><tr><th>標的</th><th class="num">市值（萬）</th><th class="num">報酬率</th></tr></thead>
@@ -1334,10 +1401,6 @@ function renderHoldingTables(latest) {
       ${twStocks.map(s => {
         const shares = getShares(s.symbol, s.val, 'TW');
         const ret = shares ? calcReturn(s.val * 10000, cb[s.symbol], shares) : null;
-        if (ret && cb[s.symbol] > 0) {
-          twTotalReturn.gain += ret.gain;
-          twTotalReturn.cost += cb[s.symbol] * shares;
-        }
         return `<tr>
           <td>${s.name}</td>
           <td class="num">${(s.val||0).toFixed(1)}</td>
@@ -1346,13 +1409,7 @@ function renderHoldingTables(latest) {
       }).join('')}
     </tbody>`;
   
-  // TW total return
-  const twTotalPct = twTotalReturn.cost > 0 ? (twTotalReturn.gain / twTotalReturn.cost) * 100 : null;
-  document.getElementById('tw-total-return').innerHTML = twTotalPct !== null 
-    ? `<span class="${twTotalPct >= 0 ? 'return-positive' : 'return-negative'}">${twTotalPct >= 0 ? '+' : ''}${twTotalPct.toFixed(1)}%</span>`
-    : '';
-  
-  // US stocks table
+  // ===== 長期池美股表格 =====
   const usStocks = [
     { name: 'VTI', key: 'vti', symbol: 'VTI', val: us.vti },
     { name: 'QQQ', key: 'qqq', symbol: 'QQQ', val: us.qqq },
@@ -1364,18 +1421,12 @@ function renderHoldingTables(latest) {
     { name: 'VWO', key: 'vwo', symbol: 'VWO', val: us.vwo },
   ].filter(s => s.val > 0);
   
-  let usTotalReturn = { gain: 0, cost: 0 };
-  
   document.getElementById('table-us').innerHTML = `
     <thead><tr><th>標的</th><th class="num">美元</th><th class="num">台幣（萬）</th><th class="num">報酬率</th></tr></thead>
     <tbody>
       ${usStocks.map(s => {
         const shares = getShares(s.symbol, s.val, 'US');
         const ret = shares ? calcReturn(s.val, cb[s.symbol], shares) : null;
-        if (ret && cb[s.symbol] > 0) {
-          usTotalReturn.gain += ret.gain;
-          usTotalReturn.cost += cb[s.symbol] * shares;
-        }
         return `<tr>
           <td>${s.name}</td>
           <td class="num">${(s.val||0).toLocaleString()}</td>
@@ -1384,12 +1435,6 @@ function renderHoldingTables(latest) {
         </tr>`;
       }).join('')}
     </tbody>`;
-  
-  // US total return
-  const usTotalPct = usTotalReturn.cost > 0 ? (usTotalReturn.gain / usTotalReturn.cost) * 100 : null;
-  document.getElementById('us-total-return').innerHTML = usTotalPct !== null 
-    ? `<span class="${usTotalPct >= 0 ? 'return-positive' : 'return-negative'}">${usTotalPct >= 0 ? '+' : ''}${usTotalPct.toFixed(1)}%</span>`
-    : '';
 }
 
 // ===== RENDER HISTORY =====
