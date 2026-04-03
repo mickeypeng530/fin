@@ -1364,6 +1364,8 @@ function renderHoldingTables(latest) {
   `;
 
   // ===== 短中期池表格 =====
+  const sp = latest.shortPool || {};
+  const c = calcSnapshot(latest);
   const shortItems = [
     { name: '富邦50', val: sp.fubong50 },
     { name: '00720B', val: sp.b00720b },
