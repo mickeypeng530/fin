@@ -293,21 +293,21 @@
     </div>
 
     <div class="input-section">
-      <h3>短中期池</h3>
+      <h3>短中期池 <span id="sum-short" style="float:right;font-size:0.9rem;color:var(--accent);font-weight:600"></span></h3>
       <div class="input-grid">
         <div class="input-group">
           <label>富邦50 (006208) <span class="input-unit">（萬）</span></label>
-          <input type="number" id="in-st-fubong50" placeholder="0" step="0.1" data-stock="006208" data-market="TW">
+          <input type="number" id="in-st-fubong50" placeholder="0" step="0.1" data-stock="006208" data-market="TW" oninput="updateSums()">
           <div class="price-info" id="price-st-fubong50"></div>
         </div>
         <div class="input-group">
           <label>00720B <span class="input-unit">（萬）</span></label>
-          <input type="number" id="in-st-00720b" placeholder="0" step="0.1" data-stock="00720B" data-market="TW">
+          <input type="number" id="in-st-00720b" placeholder="0" step="0.1" data-stock="00720B" data-market="TW" oninput="updateSums()">
           <div class="price-info" id="price-st-00720b"></div>
         </div>
         <div class="input-group">
           <label>定存 <span class="input-unit">（萬）</span></label>
-          <input type="number" id="in-st-deposit" placeholder="0" step="0.1">
+          <input type="number" id="in-st-deposit" placeholder="0" step="0.1" oninput="updateSums()">
         </div>
       </div>
     </div>
@@ -315,43 +315,50 @@
     <div class="input-section">
       <h3>長期池 — 台股（萬）</h3>
       <div class="input-grid">
+        <div class="input-group" style="background:var(--card2);padding:0.75rem;border-radius:8px;border:1px solid var(--accent)">
+          <label style="color:var(--accent);font-weight:600">台股合計</label>
+          <input type="number" id="in-lt-tw-total" placeholder="0" step="0.1" oninput="updateSums()">
+        </div>
+      </div>
+      <div style="margin-top:1rem;font-size:0.8rem;color:var(--muted)">▼ 個股明細（記錄用，不影響合計）</div>
+      <div class="input-grid" style="margin-top:0.5rem;opacity:0.85">
         <div class="input-group">
-          <label>0050 台灣50（市值）</label>
+          <label>0050 台灣50</label>
           <input type="number" id="in-lt-tw50" placeholder="0" step="0.1" data-stock="0050" data-market="TW">
           <div class="price-info" id="price-lt-tw50"></div>
         </div>
         <div class="input-group">
-          <label>006208 富邦50（市值）</label>
+          <label>006208 富邦50</label>
           <input type="number" id="in-lt-fb50" placeholder="0" step="0.1" data-stock="006208" data-market="TW">
           <div class="price-info" id="price-lt-fb50"></div>
         </div>
         <div class="input-group">
-          <label>0056 高股息（市值）</label>
+          <label>0056 高股息</label>
           <input type="number" id="in-lt-0056" placeholder="0" step="0.1" data-stock="0056" data-market="TW">
           <div class="price-info" id="price-lt-0056"></div>
         </div>
         <div class="input-group">
-          <label>00929（市值）</label>
+          <label>00929</label>
           <input type="number" id="in-lt-00929" placeholder="0" step="0.1" data-stock="00929" data-market="TW">
           <div class="price-info" id="price-lt-00929"></div>
         </div>
         <div class="input-group">
-          <label>00955（市值）</label>
+          <label>00955</label>
           <input type="number" id="in-lt-00955" placeholder="0" step="0.1" data-stock="00955" data-market="TW">
           <div class="price-info" id="price-lt-00955"></div>
         </div>
         <div class="input-group">
-          <label>2330 台積電（市值）</label>
+          <label>2330 台積電</label>
           <input type="number" id="in-lt-2330" placeholder="0" step="0.1" data-stock="2330" data-market="TW">
           <div class="price-info" id="price-lt-2330"></div>
         </div>
         <div class="input-group">
-          <label>2646 星宇（市值）</label>
+          <label>2646 星宇</label>
           <input type="number" id="in-lt-2646" placeholder="0" step="0.1" data-stock="2646" data-market="TW">
           <div class="price-info" id="price-lt-2646"></div>
         </div>
         <div class="input-group">
-          <label>00720B（市值）</label>
+          <label>00720B</label>
           <input type="number" id="in-lt-00720b" placeholder="0" step="0.1" data-stock="00720B" data-market="TW">
           <div class="price-info" id="price-lt-00720b"></div>
         </div>
@@ -361,6 +368,18 @@
     <div class="input-section">
       <h3>長期池 — 美股（美元）</h3>
       <div class="input-grid">
+        <div class="input-group" style="background:var(--card2);padding:0.75rem;border-radius:8px;border:1px solid var(--accent)">
+          <label style="color:var(--accent);font-weight:600">美股合計（美元）</label>
+          <input type="number" id="in-lt-us-total" placeholder="0" step="1" oninput="updateSums()">
+        </div>
+        <div class="input-group">
+          <label>USD/TWD 匯率 <button onclick="fetchRate()" style="margin-left:0.4rem;padding:0.1rem 0.5rem;font-size:0.72rem;border-radius:4px;border:1px solid var(--border);background:var(--card2);color:var(--accent);cursor:pointer">即時抓取</button></label>
+          <input type="number" id="in-usdtwd" placeholder="32" step="0.01" oninput="updateSums()">
+          <span style="font-size:0.75rem;color:var(--muted)" id="rate-source"></span>
+        </div>
+      </div>
+      <div style="margin-top:1rem;font-size:0.8rem;color:var(--muted)">▼ 個股明細（記錄用，不影響合計）</div>
+      <div class="input-grid" style="margin-top:0.5rem;opacity:0.85">
         <div class="input-group">
           <label>VTI</label>
           <input type="number" id="in-us-vti" placeholder="0" step="1" data-stock="VTI" data-market="US">
@@ -401,11 +420,6 @@
           <input type="number" id="in-us-vwo" placeholder="0" step="1" data-stock="VWO" data-market="US">
           <div class="price-info" id="price-us-vwo"></div>
         </div>
-        <div class="input-group">
-          <label>USD/TWD 匯率 <button onclick="fetchRate()" style="margin-left:0.4rem;padding:0.1rem 0.5rem;font-size:0.72rem;border-radius:4px;border:1px solid var(--border);background:var(--card2);color:var(--accent);cursor:pointer">即時抓取</button></label>
-          <input type="number" id="in-usdtwd" placeholder="32" step="0.01">
-          <span style="font-size:0.75rem;color:var(--muted)" id="rate-source"></span>
-        </div>
       </div>
     </div>
 
@@ -414,8 +428,12 @@
       <div class="input-grid">
         <div class="input-group">
           <label>現金部位</label>
-          <input type="number" id="in-lt-cash" placeholder="5" step="0.1">
+          <input type="number" id="in-lt-cash" placeholder="5" step="0.1" oninput="updateSums()">
         </div>
+      </div>
+      <div style="margin-top:1rem;padding:1rem;background:var(--card2);border-radius:8px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:0.9rem;color:var(--muted)">長期池合計</span>
+        <span id="sum-long-total" style="font-size:1.2rem;font-weight:700;color:var(--accent)">—</span>
       </div>
     </div>
 
@@ -876,12 +894,14 @@ async function fetchAllPrices() {
 function calcSnapshot(s) {
   const usd = s.usdtwd || 32;
   const shortTotal = (s.shortPool?.fubong50||0) + (s.shortPool?.b00720b||0) + (s.shortPool?.deposit||0);
-  const twTotal = Object.values(s.longPoolTW||{}).reduce((a,b)=>a+b,0);
-  const usTotal = Object.values(s.longPoolUS||{}).reduce((a,b)=>a+b,0) * usd / 10000;
-  const longTotal = twTotal + usTotal + (s.longCash||0);
+  // 使用手動輸入的合計，如果沒有則用舊版的個股加總（向下相容）
+  const twTotal = s.longPoolTW?.total || Object.entries(s.longPoolTW||{}).filter(([k])=>k!=='total').reduce((a,[,v])=>a+(v||0),0);
+  const usTotal = s.longPoolUS?.total || Object.entries(s.longPoolUS||{}).filter(([k])=>k!=='total').reduce((a,[,v])=>a+(v||0),0);
+  const usInTwd = usTotal * usd / 10000;
+  const longTotal = twTotal + usInTwd + (s.longCash||0);
   const invest = shortTotal + longTotal;
   const total = invest + (s.reserve||0);
-  return { shortTotal, twTotal, usTotal, longTotal, invest, total };
+  return { shortTotal, twTotal, usTotal, usInTwd, longTotal, invest, total };
 }
 
 // ===== CONCENTRATION CALCULATION =====
@@ -1432,7 +1452,9 @@ function saveMonth() {
       b00720b: +document.getElementById('in-st-00720b').value || 0,
       deposit: +document.getElementById('in-st-deposit').value || 0,
     },
+    // 長期池合計（手動輸入）
     longPoolTW: {
+      total: +document.getElementById('in-lt-tw-total').value || 0,
       tw50: +document.getElementById('in-lt-tw50').value || 0,
       fb50: +document.getElementById('in-lt-fb50').value || 0,
       n0056: +document.getElementById('in-lt-0056').value || 0,
@@ -1443,6 +1465,7 @@ function saveMonth() {
       b00720b: +document.getElementById('in-lt-00720b').value || 0,
     },
     longPoolUS: {
+      total: +document.getElementById('in-lt-us-total').value || 0,
       vti: +document.getElementById('in-us-vti').value || 0,
       qqq: +document.getElementById('in-us-qqq').value || 0,
       vpl: +document.getElementById('in-us-vpl').value || 0,
@@ -1470,6 +1493,8 @@ function loadLatestToForm() {
   document.getElementById('in-st-fubong50').value = s.shortPool?.fubong50||'';
   document.getElementById('in-st-00720b').value = s.shortPool?.b00720b||'';
   document.getElementById('in-st-deposit').value = s.shortPool?.deposit||'';
+  // 台股合計
+  document.getElementById('in-lt-tw-total').value = s.longPoolTW?.total||'';
   document.getElementById('in-lt-tw50').value = s.longPoolTW?.tw50||'';
   document.getElementById('in-lt-fb50').value = s.longPoolTW?.fb50||'';
   document.getElementById('in-lt-0056').value = s.longPoolTW?.n0056||'';
@@ -1478,6 +1503,8 @@ function loadLatestToForm() {
   document.getElementById('in-lt-2330').value = s.longPoolTW?.n2330||'';
   document.getElementById('in-lt-2646').value = s.longPoolTW?.n2646||'';
   document.getElementById('in-lt-00720b').value = s.longPoolTW?.b00720b||'';
+  // 美股合計
+  document.getElementById('in-lt-us-total').value = s.longPoolUS?.total||'';
   document.getElementById('in-us-vti').value = s.longPoolUS?.vti||'';
   document.getElementById('in-us-qqq').value = s.longPoolUS?.qqq||'';
   document.getElementById('in-us-vpl').value = s.longPoolUS?.vpl||'';
@@ -1488,6 +1515,7 @@ function loadLatestToForm() {
   document.getElementById('in-us-vwo').value = s.longPoolUS?.vwo||'';
   document.getElementById('in-lt-cash').value = s.longCash||'';
   document.getElementById('in-usdtwd').value = s.usdtwd||32;
+  updateSums(); // 更新合計
 }
 
 // ===== SETTINGS =====
@@ -1580,11 +1608,35 @@ async function fetchRate() {
       document.getElementById('in-usdtwd').value = rate.toFixed(2);
       document.getElementById('rate-source').textContent = '來源：exchangerate-api（' + new Date().toLocaleTimeString('zh-TW') + '）';
       showToast('匯率已更新：' + rate.toFixed(2));
+      updateSums();
     }
   } catch(e) {
     document.getElementById('rate-source').textContent = '無法連線，請手動輸入';
   }
   btn.textContent = '即時抓取';
+}
+
+// ===== INPUT SUMS =====
+function updateSums() {
+  // 短中期池合計
+  const shortSum = 
+    (+document.getElementById('in-st-fubong50').value || 0) +
+    (+document.getElementById('in-st-00720b').value || 0) +
+    (+document.getElementById('in-st-deposit').value || 0);
+  document.getElementById('sum-short').textContent = `合計: ${shortSum.toFixed(1)} 萬`;
+  
+  // 長期池：用手動輸入的合計
+  const twTotal = +document.getElementById('in-lt-tw-total').value || 0;
+  const usTotal = +document.getElementById('in-lt-us-total').value || 0;
+  const usdtwd = +document.getElementById('in-usdtwd').value || 32;
+  const cash = +document.getElementById('in-lt-cash').value || 0;
+  
+  // 美股換算台幣
+  const usTotalTwd = usTotal * usdtwd / 10000;
+  
+  // 長期池總計
+  const longTotal = twTotal + usTotalTwd + cash;
+  document.getElementById('sum-long-total').textContent = `${longTotal.toFixed(1)} 萬`;
 }
 
 // ===== NAVIGATION =====
