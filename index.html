@@ -1038,7 +1038,7 @@ function mkAllocationChart() {
     type: 'doughnut',
     data: {
       labels: ['長期池台股', '長期池美股', '長期池現金', '短中期池', '準備金'],
-      datasets: [{ data: [c.twTotal, c.usTotal, latest.longCash||0, c.shortTotal, latest.reserve||0],
+      datasets: [{ data: [c.twTotal, c.usInTwd, latest.longCash||0, c.shortTotal, latest.reserve||0],
         backgroundColor: ['#6c8fff','#ff6b8a','#43e8b0','#ffd166','#a78bfa'],
         borderWidth: 0 }]
     },
