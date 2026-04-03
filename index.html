@@ -95,10 +95,12 @@
   .input-group label { font-size: 0.8rem; color: var(--muted); }
   .input-group input { background: var(--card2); border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem 0.75rem; color: var(--text); font-size: 0.95rem; width: 100%; transition: border-color 0.2s; }
   .input-group input:focus { outline: none; border-color: var(--accent); }
+  .input-group input:disabled { opacity: 0.6; cursor: not-allowed; }
   .input-unit { font-size: 0.75rem; color: var(--muted); }
   .btn { padding: 0.65rem 1.5rem; border-radius: 8px; border: none; cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: all 0.2s; }
   .btn-primary { background: var(--accent); color: #fff; }
   .btn-primary:hover { opacity: 0.85; }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
   .btn-secondary { background: var(--card2); color: var(--text); border: 1px solid var(--border); }
   .btn-secondary:hover { border-color: var(--accent); }
   .btn-row { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
@@ -133,6 +135,31 @@
 
   .spacer { height: 1rem; }
   .mt2 { margin-top: 2rem; }
+
+  /* NEW: Price & Stock Info */
+  .price-info { font-size: 0.72rem; color: var(--muted); margin-top: 0.2rem; }
+  .price-info.loading { color: var(--warn); }
+  .price-info.error { color: var(--danger); }
+  .shares-calc { font-size: 0.75rem; color: var(--accent); margin-top: 0.15rem; }
+  
+  /* NEW: Concentration Warning */
+  .alert-box { background: rgba(255,107,138,0.1); border: 1px solid var(--danger); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+  .alert-box.warn { background: rgba(255,209,102,0.1); border-color: var(--warn); }
+  .alert-title { font-weight: 600; margin-bottom: 0.3rem; display: flex; align-items: center; gap: 0.4rem; }
+  .alert-title .icon { font-size: 1rem; }
+  .alert-items { font-size: 0.85rem; color: var(--muted); }
+
+  /* NEW: Return Rate Display */
+  .return-positive { color: var(--ok); }
+  .return-negative { color: var(--danger); }
+  .cost-basis { font-size: 0.72rem; color: var(--muted); }
+
+  /* NEW: Stock input row with price */
+  .stock-input-row { display: grid; grid-template-columns: 1fr auto; gap: 0.5rem; align-items: start; }
+  .stock-input-row .input-group { flex: 1; }
+  .fetch-status { font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px; background: var(--card2); color: var(--muted); white-space: nowrap; margin-top: 1.6rem; }
+  .fetch-status.ok { background: rgba(67,232,176,0.15); color: var(--ok); }
+  .fetch-status.err { background: rgba(255,107,138,0.15); color: var(--danger); }
 </style>
 </head>
 <body>
@@ -160,7 +187,7 @@
 <div id="page-welcome" style="display:flex;align-items:center;justify-content:center;min-height:100vh">
   <div class="card" style="max-width:460px;text-align:center;padding:3rem">
     <div style="font-size:2.5rem;font-weight:700;color:var(--accent);letter-spacing:3px;margin-bottom:0.5rem">fin</div>
-    <div style="color:var(--muted);margin-bottom:2.5rem;font-size:0.95rem">個人財務追蹤器</div>
+    <div style="color:var(--muted);margin-bottom:2.5rem;font-size:0.95rem">個人財務追蹤器 v2</div>
     <div style="display:flex;flex-direction:column;gap:0.75rem">
       <button class="btn btn-primary" onclick="document.getElementById('load-file').click()" style="width:100%;padding:0.85rem">載入資料檔案</button>
       <input type="file" id="load-file" accept=".json" style="display:none" onchange="loadFile(event)">
@@ -175,6 +202,9 @@
 
 <!-- OVERVIEW PAGE -->
 <div class="page active" id="page-overview">
+  <!-- Concentration Alerts -->
+  <div id="concentration-alerts"></div>
+
   <div class="grid-4" style="margin-bottom:1rem">
     <div class="card">
       <div class="card-title">總資產（含準備金）</div>
@@ -215,11 +245,11 @@
 
   <div class="grid-2">
     <div class="card">
-      <div class="card-title">台股持倉</div>
+      <div class="card-title">台股持倉 <span id="tw-total-return" style="font-size:0.85rem;margin-left:0.5rem"></span></div>
       <table id="table-tw"></table>
     </div>
     <div class="card">
-      <div class="card-title">美股持倉（美元）</div>
+      <div class="card-title">美股持倉（美元）<span id="us-total-return" style="font-size:0.85rem;margin-left:0.5rem"></span></div>
       <table id="table-us"></table>
     </div>
   </div>
@@ -228,14 +258,27 @@
 <!-- INPUT PAGE -->
 <div class="page" id="page-input">
   <div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem">
       <div>
         <div class="section-title">每月資產輸入</div>
-        <div style="font-size:0.85rem;color:var(--muted)">填入本月各標的最新金額，按儲存後自動記錄</div>
+        <div style="font-size:0.85rem;color:var(--muted)">填入本月各標的最新市值，系統會自動抓股價、計算股數</div>
       </div>
-      <div>
-        <label style="font-size:0.85rem;color:var(--muted);margin-right:0.5rem">輸入月份</label>
-        <input type="month" id="input-month" style="background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:0.4rem 0.75rem;color:var(--text);font-size:0.9rem">
+      <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap">
+        <div>
+          <label style="font-size:0.85rem;color:var(--muted);margin-right:0.5rem">輸入月份</label>
+          <input type="month" id="input-month" style="background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:0.4rem 0.75rem;color:var(--text);font-size:0.9rem">
+        </div>
+        <button class="btn btn-secondary" onclick="fetchAllPrices()" id="btn-fetch-prices" style="padding:0.4rem 0.8rem;font-size:0.85rem">
+          🔄 抓取股價
+        </button>
+      </div>
+    </div>
+
+    <!-- Price Status -->
+    <div id="price-status" style="margin-bottom:1rem;display:none">
+      <div style="font-size:0.85rem;color:var(--muted);display:flex;align-items:center;gap:0.5rem">
+        <span id="price-status-icon">⏳</span>
+        <span id="price-status-text">正在抓取股價...</span>
       </div>
     </div>
 
@@ -253,12 +296,14 @@
       <h3>短中期池</h3>
       <div class="input-grid">
         <div class="input-group">
-          <label>富邦50 <span class="input-unit">（萬）</span></label>
-          <input type="number" id="in-st-fubong50" placeholder="0" step="0.1">
+          <label>富邦50 (006208) <span class="input-unit">（萬）</span></label>
+          <input type="number" id="in-st-fubong50" placeholder="0" step="0.1" data-stock="006208" data-market="TW">
+          <div class="price-info" id="price-st-fubong50"></div>
         </div>
         <div class="input-group">
           <label>00720B <span class="input-unit">（萬）</span></label>
-          <input type="number" id="in-st-00720b" placeholder="0" step="0.1">
+          <input type="number" id="in-st-00720b" placeholder="0" step="0.1" data-stock="00720B" data-market="TW">
+          <div class="price-info" id="price-st-00720b"></div>
         </div>
         <div class="input-group">
           <label>定存 <span class="input-unit">（萬）</span></label>
@@ -271,24 +316,44 @@
       <h3>長期池 — 台股（萬）</h3>
       <div class="input-grid">
         <div class="input-group">
-          <label>台灣50（市值）</label>
-          <input type="number" id="in-lt-tw50" placeholder="0" step="0.1">
+          <label>0050 台灣50（市值）</label>
+          <input type="number" id="in-lt-tw50" placeholder="0" step="0.1" data-stock="0050" data-market="TW">
+          <div class="price-info" id="price-lt-tw50"></div>
         </div>
         <div class="input-group">
-          <label>富邦50（市值）</label>
-          <input type="number" id="in-lt-fb50" placeholder="0" step="0.1">
+          <label>006208 富邦50（市值）</label>
+          <input type="number" id="in-lt-fb50" placeholder="0" step="0.1" data-stock="006208" data-market="TW">
+          <div class="price-info" id="price-lt-fb50"></div>
+        </div>
+        <div class="input-group">
+          <label>0056 高股息（市值）</label>
+          <input type="number" id="in-lt-0056" placeholder="0" step="0.1" data-stock="0056" data-market="TW">
+          <div class="price-info" id="price-lt-0056"></div>
+        </div>
+        <div class="input-group">
+          <label>00929（市值）</label>
+          <input type="number" id="in-lt-00929" placeholder="0" step="0.1" data-stock="00929" data-market="TW">
+          <div class="price-info" id="price-lt-00929"></div>
+        </div>
+        <div class="input-group">
+          <label>00955（市值）</label>
+          <input type="number" id="in-lt-00955" placeholder="0" step="0.1" data-stock="00955" data-market="TW">
+          <div class="price-info" id="price-lt-00955"></div>
         </div>
         <div class="input-group">
           <label>2330 台積電（市值）</label>
-          <input type="number" id="in-lt-2330" placeholder="0" step="0.1">
+          <input type="number" id="in-lt-2330" placeholder="0" step="0.1" data-stock="2330" data-market="TW">
+          <div class="price-info" id="price-lt-2330"></div>
         </div>
         <div class="input-group">
           <label>2646 星宇（市值）</label>
-          <input type="number" id="in-lt-2646" placeholder="0" step="0.1">
+          <input type="number" id="in-lt-2646" placeholder="0" step="0.1" data-stock="2646" data-market="TW">
+          <div class="price-info" id="price-lt-2646"></div>
         </div>
         <div class="input-group">
           <label>00720B（市值）</label>
-          <input type="number" id="in-lt-00720b" placeholder="0" step="0.1">
+          <input type="number" id="in-lt-00720b" placeholder="0" step="0.1" data-stock="00720B" data-market="TW">
+          <div class="price-info" id="price-lt-00720b"></div>
         </div>
       </div>
     </div>
@@ -298,35 +363,43 @@
       <div class="input-grid">
         <div class="input-group">
           <label>VTI</label>
-          <input type="number" id="in-us-vti" placeholder="0" step="1">
+          <input type="number" id="in-us-vti" placeholder="0" step="1" data-stock="VTI" data-market="US">
+          <div class="price-info" id="price-us-vti"></div>
         </div>
         <div class="input-group">
           <label>QQQ</label>
-          <input type="number" id="in-us-qqq" placeholder="0" step="1">
+          <input type="number" id="in-us-qqq" placeholder="0" step="1" data-stock="QQQ" data-market="US">
+          <div class="price-info" id="price-us-qqq"></div>
         </div>
         <div class="input-group">
           <label>VPL</label>
-          <input type="number" id="in-us-vpl" placeholder="0" step="1">
+          <input type="number" id="in-us-vpl" placeholder="0" step="1" data-stock="VPL" data-market="US">
+          <div class="price-info" id="price-us-vpl"></div>
         </div>
         <div class="input-group">
           <label>VGK</label>
-          <input type="number" id="in-us-vgk" placeholder="0" step="1">
+          <input type="number" id="in-us-vgk" placeholder="0" step="1" data-stock="VGK" data-market="US">
+          <div class="price-info" id="price-us-vgk"></div>
         </div>
         <div class="input-group">
           <label>TSLA</label>
-          <input type="number" id="in-us-tsla" placeholder="0" step="1">
+          <input type="number" id="in-us-tsla" placeholder="0" step="1" data-stock="TSLA" data-market="US">
+          <div class="price-info" id="price-us-tsla"></div>
         </div>
         <div class="input-group">
           <label>TSM</label>
-          <input type="number" id="in-us-tsm" placeholder="0" step="1">
+          <input type="number" id="in-us-tsm" placeholder="0" step="1" data-stock="TSM" data-market="US">
+          <div class="price-info" id="price-us-tsm"></div>
         </div>
         <div class="input-group">
           <label>NVDA</label>
-          <input type="number" id="in-us-nvda" placeholder="0" step="1">
+          <input type="number" id="in-us-nvda" placeholder="0" step="1" data-stock="NVDA" data-market="US">
+          <div class="price-info" id="price-us-nvda"></div>
         </div>
         <div class="input-group">
           <label>VWO</label>
-          <input type="number" id="in-us-vwo" placeholder="0" step="1">
+          <input type="number" id="in-us-vwo" placeholder="0" step="1" data-stock="VWO" data-market="US">
+          <div class="price-info" id="price-us-vwo"></div>
         </div>
         <div class="input-group">
           <label>USD/TWD 匯率 <button onclick="fetchRate()" style="margin-left:0.4rem;padding:0.1rem 0.5rem;font-size:0.72rem;border-radius:4px;border:1px solid var(--border);background:var(--card2);color:var(--accent);cursor:pointer">即時抓取</button></label>
@@ -477,9 +550,34 @@
       </div>
     </div>
 
+    <div class="settings-group">
+      <h3>集中度上限</h3>
+      <div class="settings-grid">
+        <div class="input-group">
+          <label>台積電曝險上限（%）</label>
+          <input type="number" id="cfg-tsmc-limit" step="1" value="40">
+        </div>
+        <div class="input-group">
+          <label>科技曝險上限（%）</label>
+          <input type="number" id="cfg-tech-limit" step="1" value="45">
+        </div>
+      </div>
+    </div>
+
     <div class="btn-row">
       <button class="btn btn-primary" onclick="saveSettings()">儲存設定</button>
       <span class="save-msg" id="settings-save-msg"></span>
+    </div>
+  </div>
+
+  <div class="card mt2">
+    <div class="card-title">成本基準管理</div>
+    <div style="font-size:0.85rem;color:var(--muted);margin-bottom:1rem">
+      設定各標的的成本價，系統會自動計算報酬率
+    </div>
+    <div class="settings-grid" id="cost-basis-grid"></div>
+    <div class="btn-row" style="margin-top:1rem">
+      <button class="btn btn-primary" onclick="saveCostBasis()">儲存成本</button>
     </div>
   </div>
 
@@ -499,6 +597,31 @@
 <div id="toast">✓ 已儲存</div>
 
 <script>
+// ===== CONFIG =====
+const STOCK_API_URL = 'https://stock-price.mickeypeng530530.workers.dev/';
+
+// Stock definitions with TSMC weight for concentration calc
+const STOCK_DEFS = {
+  // Taiwan stocks
+  '0050': { name: '台灣50', market: 'TW', tsmcWeight: 0.50, techWeight: 0.70 },
+  '006208': { name: '富邦50', market: 'TW', tsmcWeight: 0.50, techWeight: 0.70 },
+  '0056': { name: '高股息', market: 'TW', tsmcWeight: 0.05, techWeight: 0.15 },
+  '00720B': { name: '元大投資級公司債', market: 'TW', tsmcWeight: 0, techWeight: 0 },
+  '00929': { name: '復華台灣科技優息', market: 'TW', tsmcWeight: 0.15, techWeight: 0.80 },
+  '00955': { name: '台新臺灣IC設計', market: 'TW', tsmcWeight: 0.10, techWeight: 0.95 },
+  '2330': { name: '台積電', market: 'TW', tsmcWeight: 1.0, techWeight: 1.0 },
+  '2646': { name: '星宇航空', market: 'TW', tsmcWeight: 0, techWeight: 0 },
+  // US stocks
+  'VTI': { name: 'Vanguard Total Stock', market: 'US', tsmcWeight: 0, techWeight: 0.30 },
+  'QQQ': { name: 'Nasdaq 100', market: 'US', tsmcWeight: 0.02, techWeight: 0.55 },
+  'VPL': { name: 'Vanguard Pacific', market: 'US', tsmcWeight: 0.05, techWeight: 0.20 },
+  'VGK': { name: 'Vanguard Europe', market: 'US', tsmcWeight: 0, techWeight: 0.15 },
+  'TSLA': { name: 'Tesla', market: 'US', tsmcWeight: 0, techWeight: 1.0 },
+  'TSM': { name: '台積電 ADR', market: 'US', tsmcWeight: 1.0, techWeight: 1.0 },
+  'NVDA': { name: 'NVIDIA', market: 'US', tsmcWeight: 0, techWeight: 1.0 },
+  'VWO': { name: 'Vanguard Emerging', market: 'US', tsmcWeight: 0.08, techWeight: 0.25 },
+};
+
 // ===== DEFAULT DATA =====
 const DEFAULT_SETTINGS = {
   monthlyShort: 6,
@@ -509,7 +632,9 @@ const DEFAULT_SETTINGS = {
     baby: { amount: 200, years: 2 },
     house: { amount: 1000, years: 10 },
     study: { amount: 1800, years: 20 },
-  }
+  },
+  tsmcLimit: 40,
+  techLimit: 45,
 };
 
 const SEED_SNAPSHOTS = [
@@ -531,20 +656,33 @@ const SEED_SNAPSHOTS = [
     longCash: 5,
     usdtwd: 32
   },
-  {
-    month: "2026-04",
-    reserve: 90,
-    shortPool: { fubong50: 25, b00720b: 5, deposit: 12 },
-    longPoolTW: { tw50: 250, fb50: 51, n2330: 25, n2646: 25, b00720b: 13.4 },
-    longPoolUS: { vti: 6841, qqq: 6672, vpl: 3936, vgk: 3823, tsla: 3169, tsm: 3129, nvda: 2452, vwo: 1940 },
-    longCash: 5,
-    usdtwd: 32
-  }
 ];
 
+// Default cost basis (from earlier calculation)
+const DEFAULT_COST_BASIS = {
+  '0050': 46.57,
+  '006208': 85.32,
+  '0056': 31.79,
+  '00720B': 33.51,
+  '00929': 18.45,
+  '00955': 10.18,
+  '2330': 1728.97,
+  '2646': 24.77,
+  // US stocks - need to set
+  'VTI': 0,
+  'QQQ': 0,
+  'VPL': 0,
+  'VGK': 0,
+  'TSLA': 0,
+  'TSM': 0,
+  'NVDA': 0,
+  'VWO': 0,
+};
+
 // ===== DATA LAYER =====
-let db = { settings: { ...DEFAULT_SETTINGS }, snapshots: [] };
+let db = { settings: { ...DEFAULT_SETTINGS }, snapshots: [], costBasis: { ...DEFAULT_COST_BASIS }, prices: {} };
 let hasUnsaved = false;
+let cachedPrices = {}; // { symbol: { price, timestamp } }
 
 function markUnsaved() {
   hasUnsaved = true;
@@ -562,7 +700,14 @@ function loadFile(event) {
   const reader = new FileReader();
   reader.onload = ev => {
     try {
-      db = JSON.parse(ev.target.result);
+      const loaded = JSON.parse(ev.target.result);
+      // Merge with defaults for backward compatibility
+      db = {
+        settings: { ...DEFAULT_SETTINGS, ...loaded.settings },
+        snapshots: loaded.snapshots || [],
+        costBasis: { ...DEFAULT_COST_BASIS, ...(loaded.costBasis || {}) },
+        prices: loaded.prices || {},
+      };
       enterApp();
       showToast('資料載入成功');
     } catch { alert('JSON 格式錯誤，請確認檔案'); }
@@ -572,7 +717,12 @@ function loadFile(event) {
 }
 
 function startNew() {
-  db = { settings: { ...DEFAULT_SETTINGS }, snapshots: [...SEED_SNAPSHOTS] };
+  db = { 
+    settings: { ...DEFAULT_SETTINGS }, 
+    snapshots: [...SEED_SNAPSHOTS],
+    costBasis: { ...DEFAULT_COST_BASIS },
+    prices: {},
+  };
   enterApp();
   showToast('已建立新資料，請記得儲存');
   markUnsaved();
@@ -581,6 +731,7 @@ function startNew() {
 function enterApp() {
   document.getElementById('page-welcome').style.display = 'none';
   document.getElementById('main-nav').style.display = '';
+  renderCostBasisGrid();
   renderOverview();
 }
 
@@ -594,16 +745,175 @@ function saveToFile() {
   showToast('已下載 fin_data.json');
 }
 
+// ===== PRICE FETCHING =====
+async function fetchPrice(symbol, market) {
+  // Check cache (valid for 1 hour)
+  const cached = cachedPrices[symbol];
+  if (cached && Date.now() - cached.timestamp < 3600000) {
+    return cached.price;
+  }
+  
+  try {
+    const res = await fetch(`${STOCK_API_URL}?stock=${symbol}&market=${market}`);
+    const data = await res.json();
+    if (data.price) {
+      cachedPrices[symbol] = { price: data.price, timestamp: Date.now() };
+      return data.price;
+    }
+    return null;
+  } catch (e) {
+    console.error(`Failed to fetch ${symbol}:`, e);
+    return null;
+  }
+}
+
+async function fetchAllPrices() {
+  const btn = document.getElementById('btn-fetch-prices');
+  const statusDiv = document.getElementById('price-status');
+  const statusIcon = document.getElementById('price-status-icon');
+  const statusText = document.getElementById('price-status-text');
+  
+  btn.disabled = true;
+  btn.textContent = '抓取中...';
+  statusDiv.style.display = 'block';
+  
+  const inputs = document.querySelectorAll('input[data-stock]');
+  const total = inputs.length;
+  let completed = 0;
+  let failed = 0;
+  
+  for (const input of inputs) {
+    const symbol = input.dataset.stock;
+    const market = input.dataset.market;
+    const priceDiv = document.getElementById('price-' + input.id.replace('in-', ''));
+    
+    if (priceDiv) {
+      priceDiv.textContent = '抓取中...';
+      priceDiv.className = 'price-info loading';
+    }
+    
+    const price = await fetchPrice(symbol, market);
+    completed++;
+    statusText.textContent = `正在抓取... (${completed}/${total})`;
+    
+    if (priceDiv) {
+      if (price) {
+        const currency = market === 'US' ? 'USD' : 'NT$';
+        priceDiv.textContent = `現價: ${currency} ${price.toFixed(2)}`;
+        priceDiv.className = 'price-info';
+        
+        // Calculate shares if value is entered
+        const value = parseFloat(input.value);
+        if (value > 0) {
+          let shares;
+          if (market === 'TW') {
+            shares = (value * 10000) / price; // value is in 萬
+          } else {
+            shares = value / price; // value is in USD
+          }
+          priceDiv.innerHTML += ` → 約 ${shares.toFixed(0)} 股`;
+        }
+      } else {
+        priceDiv.textContent = '無法取得價格';
+        priceDiv.className = 'price-info error';
+        failed++;
+      }
+    }
+  }
+  
+  // Update status
+  if (failed === 0) {
+    statusIcon.textContent = '✓';
+    statusText.textContent = `全部抓取完成 (${total} 檔)`;
+    statusDiv.style.color = 'var(--ok)';
+  } else {
+    statusIcon.textContent = '⚠';
+    statusText.textContent = `完成 ${total - failed}/${total}，${failed} 檔失敗`;
+    statusDiv.style.color = 'var(--warn)';
+  }
+  
+  btn.disabled = false;
+  btn.textContent = '🔄 抓取股價';
+  
+  // Save prices to db
+  db.prices = { ...cachedPrices };
+  
+  setTimeout(() => { statusDiv.style.display = 'none'; }, 5000);
+}
+
 // ===== COMPUTED =====
 function calcSnapshot(s) {
   const usd = s.usdtwd || 32;
-  const shortTotal = (s.shortPool.fubong50||0) + (s.shortPool.b00720b||0) + (s.shortPool.deposit||0);
+  const shortTotal = (s.shortPool?.fubong50||0) + (s.shortPool?.b00720b||0) + (s.shortPool?.deposit||0);
   const twTotal = Object.values(s.longPoolTW||{}).reduce((a,b)=>a+b,0);
   const usTotal = Object.values(s.longPoolUS||{}).reduce((a,b)=>a+b,0) * usd / 10000;
   const longTotal = twTotal + usTotal + (s.longCash||0);
   const invest = shortTotal + longTotal;
   const total = invest + (s.reserve||0);
   return { shortTotal, twTotal, usTotal, longTotal, invest, total };
+}
+
+// ===== CONCENTRATION CALCULATION =====
+function calcConcentration(s) {
+  const usd = s.usdtwd || 32;
+  const totalInvest = calcSnapshot(s).invest;
+  if (totalInvest <= 0) return { tsmc: 0, tech: 0 };
+  
+  let tsmcExposure = 0;
+  let techExposure = 0;
+  
+  // Taiwan stocks (short pool)
+  const spFubong = s.shortPool?.fubong50 || 0;
+  tsmcExposure += spFubong * (STOCK_DEFS['006208']?.tsmcWeight || 0);
+  techExposure += spFubong * (STOCK_DEFS['006208']?.techWeight || 0);
+  
+  // Taiwan stocks (long pool)
+  const twMap = {
+    tw50: '0050',
+    fb50: '006208',
+    n0056: '0056',
+    n00929: '00929',
+    n00955: '00955',
+    n2330: '2330',
+    n2646: '2646',
+    b00720b: '00720B',
+  };
+  
+  for (const [key, symbol] of Object.entries(twMap)) {
+    const val = s.longPoolTW?.[key] || 0;
+    const def = STOCK_DEFS[symbol];
+    if (def) {
+      tsmcExposure += val * def.tsmcWeight;
+      techExposure += val * def.techWeight;
+    }
+  }
+  
+  // US stocks
+  const usMap = {
+    vti: 'VTI',
+    qqq: 'QQQ',
+    vpl: 'VPL',
+    vgk: 'VGK',
+    tsla: 'TSLA',
+    tsm: 'TSM',
+    nvda: 'NVDA',
+    vwo: 'VWO',
+  };
+  
+  for (const [key, symbol] of Object.entries(usMap)) {
+    const valUsd = s.longPoolUS?.[key] || 0;
+    const valTwd = valUsd * usd / 10000; // Convert to 萬
+    const def = STOCK_DEFS[symbol];
+    if (def) {
+      tsmcExposure += valTwd * def.tsmcWeight;
+      techExposure += valTwd * def.techWeight;
+    }
+  }
+  
+  return {
+    tsmc: (tsmcExposure / totalInvest) * 100,
+    tech: (techExposure / totalInvest) * 100,
+  };
 }
 
 // ===== FORECAST =====
@@ -633,7 +943,6 @@ function calcLongForecast(startAmount, settings) {
   let val = startAmount;
   const rate = settings.rateLong;
   const goals = settings.goals;
-  // 10年後短中期池目標完成，短中期池月投入也轉入長期池
   const monthlyAfter10 = settings.monthlyLong + settings.monthlyShort;
   rows.push({ yr: 0, start: val, invest: 0, yield: 0, withdraw: 0, beforeWithdraw: val, end: val, event: '' });
   for (let y = 1; y <= 30; y++) {
@@ -682,7 +991,7 @@ function mkAllocationChart() {
 
 function mkHistoryChart() {
   destroyChart('history');
-  const snaps = db.snapshots.sort((a,b)=>a.month.localeCompare(b.month));
+  const snaps = [...db.snapshots].sort((a,b)=>a.month.localeCompare(b.month));
   const labels = snaps.map(s=>s.month);
   const totals = snaps.map(s=>calcSnapshot(s).total);
   const longs = snaps.map(s=>calcSnapshot(s).longTotal);
@@ -717,7 +1026,6 @@ function mkForecastCharts() {
   const shortRows = calcShortForecast(c.shortTotal, db.settings);
   const longRows = calcLongForecast(c.longTotal, db.settings);
 
-  // Short forecast chart
   destroyChart('short-forecast');
   const ctx1 = document.getElementById('chart-short-forecast').getContext('2d');
   const tc = themeColors();
@@ -739,7 +1047,6 @@ function mkForecastCharts() {
     }
   });
 
-  // Long forecast chart
   destroyChart('long-forecast');
   const ctx2 = document.getElementById('chart-long-forecast').getContext('2d');
   charts['long-forecast'] = new Chart(ctx2, {
@@ -758,7 +1065,6 @@ function mkForecastCharts() {
     }
   });
 
-  // Tables
   const tb1 = document.getElementById('tbody-short-forecast');
   const fmtW = v => v > 0 ? `<span style="color:var(--warn)">-${v.toFixed(1)}</span>` : '<span style="color:var(--muted)">—</span>';
   tb1.innerHTML = shortRows.slice(1).map(r=>`
@@ -811,11 +1117,13 @@ function renderOverview() {
   delta(c.longTotal, cp?.longTotal, 'ov-long-delta');
   delta(c.shortTotal, cp?.shortTotal, 'ov-short-delta');
 
+  // Concentration Alerts
+  renderConcentrationAlerts(latest);
+
   // Goals
   const s = db.settings;
   const shortRows = calcShortForecast(c.shortTotal, s);
   const longRows = calcLongForecast(c.longTotal, s);
-  // 用提領「之前」的金額來評估是否達到目標
   const goalBabyForecast = shortRows[s.goals.baby.years]?.beforeWithdraw || 0;
   const goalHouseForecast = shortRows[s.goals.house.years]?.beforeWithdraw || 0;
   const goalStudyForecast = longRows[s.goals.study.years]?.beforeWithdraw || 0;
@@ -839,24 +1147,171 @@ function renderOverview() {
     </div>`;
   }).join('');
 
-  // Tables
+  // Tables with return rates
+  renderHoldingTables(latest);
+
+  mkAllocationChart();
+}
+
+function renderConcentrationAlerts(snap) {
+  const conc = calcConcentration(snap);
+  const tsmcLimit = db.settings.tsmcLimit || 40;
+  const techLimit = db.settings.techLimit || 45;
+  
+  const alerts = [];
+  
+  if (conc.tsmc > tsmcLimit) {
+    alerts.push({
+      type: 'danger',
+      title: '⚠️ 台積電曝險過高',
+      text: `目前 ${conc.tsmc.toFixed(1)}%，超過上限 ${tsmcLimit}%`
+    });
+  } else if (conc.tsmc > tsmcLimit * 0.9) {
+    alerts.push({
+      type: 'warn',
+      title: '⚡ 台積電曝險接近上限',
+      text: `目前 ${conc.tsmc.toFixed(1)}%，上限 ${tsmcLimit}%`
+    });
+  }
+  
+  if (conc.tech > techLimit) {
+    alerts.push({
+      type: 'danger',
+      title: '⚠️ 科技曝險過高',
+      text: `目前 ${conc.tech.toFixed(1)}%，超過上限 ${techLimit}%`
+    });
+  } else if (conc.tech > techLimit * 0.9) {
+    alerts.push({
+      type: 'warn',
+      title: '⚡ 科技曝險接近上限',
+      text: `目前 ${conc.tech.toFixed(1)}%，上限 ${techLimit}%`
+    });
+  }
+  
+  const container = document.getElementById('concentration-alerts');
+  if (alerts.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+  
+  container.innerHTML = alerts.map(a => `
+    <div class="alert-box ${a.type === 'warn' ? 'warn' : ''}">
+      <div class="alert-title" style="color:var(--${a.type})">${a.title}</div>
+      <div class="alert-items">${a.text}</div>
+    </div>
+  `).join('');
+}
+
+function renderHoldingTables(latest) {
   const usd = latest.usdtwd || 32;
   const tw = latest.longPoolTW || {};
   const us = latest.longPoolUS || {};
+  const cb = db.costBasis || {};
+  
+  // Helper to calculate return
+  const calcReturn = (marketVal, costBasis, shares) => {
+    if (!costBasis || costBasis <= 0 || !shares || shares <= 0) return null;
+    const totalCost = costBasis * shares;
+    const gain = marketVal - totalCost;
+    const pct = (gain / totalCost) * 100;
+    return { gain, pct };
+  };
+  
+  // Format return HTML
+  const fmtReturn = (ret) => {
+    if (!ret) return '<span style="color:var(--muted)">—</span>';
+    const cls = ret.pct >= 0 ? 'return-positive' : 'return-negative';
+    const sign = ret.pct >= 0 ? '+' : '';
+    return `<span class="${cls}">${sign}${ret.pct.toFixed(1)}%</span>`;
+  };
+  
+  // Taiwan stocks table
+  const twStocks = [
+    { name: '0050 台灣50', key: 'tw50', symbol: '0050', val: tw.tw50 },
+    { name: '006208 富邦50', key: 'fb50', symbol: '006208', val: tw.fb50 },
+    { name: '0056 高股息', key: 'n0056', symbol: '0056', val: tw.n0056 },
+    { name: '00929', key: 'n00929', symbol: '00929', val: tw.n00929 },
+    { name: '00955', key: 'n00955', symbol: '00955', val: tw.n00955 },
+    { name: '2330 台積電', key: 'n2330', symbol: '2330', val: tw.n2330 },
+    { name: '2646 星宇', key: 'n2646', symbol: '2646', val: tw.n2646 },
+    { name: '00720B', key: 'b00720b', symbol: '00720B', val: tw.b00720b },
+  ].filter(s => s.val > 0);
+  
+  // Calculate shares from cached prices
+  const getShares = (symbol, marketVal, market) => {
+    const price = cachedPrices[symbol]?.price || db.prices?.[symbol]?.price;
+    if (!price) return null;
+    if (market === 'TW') {
+      return (marketVal * 10000) / price;
+    } else {
+      return marketVal / price;
+    }
+  };
+  
+  let twTotalReturn = { gain: 0, cost: 0 };
+  
   document.getElementById('table-tw').innerHTML = `
-    <thead><tr><th>標的</th><th class="num">市值（萬）</th></tr></thead>
+    <thead><tr><th>標的</th><th class="num">市值（萬）</th><th class="num">報酬率</th></tr></thead>
     <tbody>
-      ${Object.entries({台灣50:tw.tw50, 富邦50:tw.fb50, '2330 台積電':tw.n2330, '2646 星宇':tw.n2646, '00720B':tw.b00720b})
-        .map(([k,v])=>`<tr><td>${k}</td><td class="num">${(v||0).toFixed(1)}</td></tr>`).join('')}
+      ${twStocks.map(s => {
+        const shares = getShares(s.symbol, s.val, 'TW');
+        const ret = shares ? calcReturn(s.val * 10000, cb[s.symbol], shares) : null;
+        if (ret && cb[s.symbol] > 0) {
+          twTotalReturn.gain += ret.gain;
+          twTotalReturn.cost += cb[s.symbol] * shares;
+        }
+        return `<tr>
+          <td>${s.name}</td>
+          <td class="num">${(s.val||0).toFixed(1)}</td>
+          <td class="num">${fmtReturn(ret)}</td>
+        </tr>`;
+      }).join('')}
     </tbody>`;
+  
+  // TW total return
+  const twTotalPct = twTotalReturn.cost > 0 ? (twTotalReturn.gain / twTotalReturn.cost) * 100 : null;
+  document.getElementById('tw-total-return').innerHTML = twTotalPct !== null 
+    ? `<span class="${twTotalPct >= 0 ? 'return-positive' : 'return-negative'}">${twTotalPct >= 0 ? '+' : ''}${twTotalPct.toFixed(1)}%</span>`
+    : '';
+  
+  // US stocks table
+  const usStocks = [
+    { name: 'VTI', key: 'vti', symbol: 'VTI', val: us.vti },
+    { name: 'QQQ', key: 'qqq', symbol: 'QQQ', val: us.qqq },
+    { name: 'VPL', key: 'vpl', symbol: 'VPL', val: us.vpl },
+    { name: 'VGK', key: 'vgk', symbol: 'VGK', val: us.vgk },
+    { name: 'TSLA', key: 'tsla', symbol: 'TSLA', val: us.tsla },
+    { name: 'TSM', key: 'tsm', symbol: 'TSM', val: us.tsm },
+    { name: 'NVDA', key: 'nvda', symbol: 'NVDA', val: us.nvda },
+    { name: 'VWO', key: 'vwo', symbol: 'VWO', val: us.vwo },
+  ].filter(s => s.val > 0);
+  
+  let usTotalReturn = { gain: 0, cost: 0 };
+  
   document.getElementById('table-us').innerHTML = `
-    <thead><tr><th>標的</th><th class="num">美元</th><th class="num">台幣（萬）</th></tr></thead>
+    <thead><tr><th>標的</th><th class="num">美元</th><th class="num">台幣（萬）</th><th class="num">報酬率</th></tr></thead>
     <tbody>
-      ${Object.entries({VTI:us.vti, QQQ:us.qqq, VPL:us.vpl, VGK:us.vgk, TSLA:us.tsla, TSM:us.tsm, NVDA:us.nvda, VWO:us.vwo})
-        .map(([k,v])=>`<tr><td>${k}</td><td class="num">${(v||0).toLocaleString()}</td><td class="num">${((v||0)*usd/10000).toFixed(1)}</td></tr>`).join('')}
+      ${usStocks.map(s => {
+        const shares = getShares(s.symbol, s.val, 'US');
+        const ret = shares ? calcReturn(s.val, cb[s.symbol], shares) : null;
+        if (ret && cb[s.symbol] > 0) {
+          usTotalReturn.gain += ret.gain;
+          usTotalReturn.cost += cb[s.symbol] * shares;
+        }
+        return `<tr>
+          <td>${s.name}</td>
+          <td class="num">${(s.val||0).toLocaleString()}</td>
+          <td class="num">${((s.val||0)*usd/10000).toFixed(1)}</td>
+          <td class="num">${fmtReturn(ret)}</td>
+        </tr>`;
+      }).join('')}
     </tbody>`;
-
-  mkAllocationChart();
+  
+  // US total return
+  const usTotalPct = usTotalReturn.cost > 0 ? (usTotalReturn.gain / usTotalReturn.cost) * 100 : null;
+  document.getElementById('us-total-return').innerHTML = usTotalPct !== null 
+    ? `<span class="${usTotalPct >= 0 ? 'return-positive' : 'return-negative'}">${usTotalPct >= 0 ? '+' : ''}${usTotalPct.toFixed(1)}%</span>`
+    : '';
 }
 
 // ===== RENDER HISTORY =====
@@ -874,7 +1329,6 @@ function renderHistory() {
     const us = s.longPoolUS || {};
     const sp = s.shortPool || {};
 
-    // 展開明細
     const detail = `<tr class="detail-row" id="detail-${s.month}" style="display:none">
       <td colspan="7" style="padding:0.75rem 1rem;background:var(--card2);border-radius:8px">
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1.5rem;font-size:0.82rem">
@@ -950,6 +1404,9 @@ function saveMonth() {
     longPoolTW: {
       tw50: +document.getElementById('in-lt-tw50').value || 0,
       fb50: +document.getElementById('in-lt-fb50').value || 0,
+      n0056: +document.getElementById('in-lt-0056').value || 0,
+      n00929: +document.getElementById('in-lt-00929').value || 0,
+      n00955: +document.getElementById('in-lt-00955').value || 0,
       n2330: +document.getElementById('in-lt-2330').value || 0,
       n2646: +document.getElementById('in-lt-2646').value || 0,
       b00720b: +document.getElementById('in-lt-00720b').value || 0,
@@ -984,6 +1441,9 @@ function loadLatestToForm() {
   document.getElementById('in-st-deposit').value = s.shortPool?.deposit||'';
   document.getElementById('in-lt-tw50').value = s.longPoolTW?.tw50||'';
   document.getElementById('in-lt-fb50').value = s.longPoolTW?.fb50||'';
+  document.getElementById('in-lt-0056').value = s.longPoolTW?.n0056||'';
+  document.getElementById('in-lt-00929').value = s.longPoolTW?.n00929||'';
+  document.getElementById('in-lt-00955').value = s.longPoolTW?.n00955||'';
   document.getElementById('in-lt-2330').value = s.longPoolTW?.n2330||'';
   document.getElementById('in-lt-2646').value = s.longPoolTW?.n2646||'';
   document.getElementById('in-lt-00720b').value = s.longPoolTW?.b00720b||'';
@@ -1012,6 +1472,8 @@ function renderSettings() {
   document.getElementById('cfg-goal-house-yr').value = s.goals.house.years;
   document.getElementById('cfg-goal-study').value = s.goals.study.amount;
   document.getElementById('cfg-goal-study-yr').value = s.goals.study.years;
+  document.getElementById('cfg-tsmc-limit').value = s.tsmcLimit || 40;
+  document.getElementById('cfg-tech-limit').value = s.techLimit || 45;
 }
 
 function saveSettings() {
@@ -1024,11 +1486,55 @@ function saveSettings() {
       baby: { amount: +document.getElementById('cfg-goal-baby').value, years: +document.getElementById('cfg-goal-baby-yr').value },
       house: { amount: +document.getElementById('cfg-goal-house').value, years: +document.getElementById('cfg-goal-house-yr').value },
       study: { amount: +document.getElementById('cfg-goal-study').value, years: +document.getElementById('cfg-goal-study-yr').value },
-    }
+    },
+    tsmcLimit: +document.getElementById('cfg-tsmc-limit').value,
+    techLimit: +document.getElementById('cfg-tech-limit').value,
   };
   markUnsaved();
   showToast('設定已更新（記得儲存檔案）');
   renderOverview(); mkForecastCharts();
+}
+
+// ===== COST BASIS =====
+function renderCostBasisGrid() {
+  const grid = document.getElementById('cost-basis-grid');
+  const cb = db.costBasis || DEFAULT_COST_BASIS;
+  
+  const twStocks = ['0050', '006208', '0056', '00720B', '00929', '00955', '2330', '2646'];
+  const usStocks = ['VTI', 'QQQ', 'VPL', 'VGK', 'TSLA', 'TSM', 'NVDA', 'VWO'];
+  
+  grid.innerHTML = `
+    <div style="grid-column: 1/-1;font-size:0.8rem;color:var(--muted);margin-bottom:0.5rem">台股成本（每股）</div>
+    ${twStocks.map(s => `
+      <div class="input-group">
+        <label>${s} ${STOCK_DEFS[s]?.name || ''}</label>
+        <input type="number" id="cb-${s}" value="${cb[s] || ''}" step="0.01" placeholder="0">
+      </div>
+    `).join('')}
+    <div style="grid-column: 1/-1;font-size:0.8rem;color:var(--muted);margin:1rem 0 0.5rem">美股成本（每股 USD）</div>
+    ${usStocks.map(s => `
+      <div class="input-group">
+        <label>${s} ${STOCK_DEFS[s]?.name || ''}</label>
+        <input type="number" id="cb-${s}" value="${cb[s] || ''}" step="0.01" placeholder="0">
+      </div>
+    `).join('')}
+  `;
+}
+
+function saveCostBasis() {
+  const allStocks = ['0050', '006208', '0056', '00720B', '00929', '00955', '2330', '2646', 'VTI', 'QQQ', 'VPL', 'VGK', 'TSLA', 'TSM', 'NVDA', 'VWO'];
+  
+  db.costBasis = {};
+  for (const s of allStocks) {
+    const input = document.getElementById('cb-' + s);
+    if (input) {
+      db.costBasis[s] = +input.value || 0;
+    }
+  }
+  
+  markUnsaved();
+  showToast('成本已更新（記得儲存檔案）');
+  renderOverview();
 }
 
 // ===== LIVE RATE =====
@@ -1059,7 +1565,7 @@ function showPage(id, btn) {
   if (id==='overview') { renderOverview(); }
   if (id==='history') { renderHistory(); }
   if (id==='forecast') { mkForecastCharts(); }
-  if (id==='settings') { renderSettings(); }
+  if (id==='settings') { renderSettings(); renderCostBasisGrid(); }
   if (id==='input') { loadLatestToForm(); }
 }
 
@@ -1076,7 +1582,6 @@ function toggleTheme() {
   const isLight = document.body.classList.toggle('light');
   document.getElementById('theme-label').textContent = isLight ? '☀️' : '🌙';
   localStorage.setItem('fin_theme', isLight ? 'light' : 'dark');
-  // 重繪圖表讓顏色正確更新
   setTimeout(() => { renderOverview(); }, 50);
 }
 
@@ -1094,10 +1599,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const now = new Date();
   document.getElementById('nav-date').textContent = now.toLocaleDateString('zh-TW', { year:'numeric', month:'long', day:'numeric' });
   document.getElementById('input-month').value = now.toISOString().slice(0,7);
-  // 顯示歡迎頁，等使用者載入或新建資料
 });
 
-// 離開前提醒未儲存
 window.addEventListener('beforeunload', e => {
   if (hasUnsaved) { e.preventDefault(); e.returnValue = ''; }
 });
