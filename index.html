@@ -245,24 +245,24 @@
     </div>
   </div>
 
-  <!-- 長期池配置比例 -->
-  <div class="card" style="margin-bottom:1rem">
-    <div class="card-title">長期池配置</div>
-    <div id="long-pool-allocation" style="display:flex;gap:2rem;flex-wrap:wrap"></div>
-  </div>
-
   <div class="grid-3" style="grid-template-columns: 1fr 1.2fr 1.2fr">
     <div class="card">
       <div class="card-title">短中期池</div>
       <table id="table-short"></table>
     </div>
-    <div class="card">
-      <div class="card-title">長期池台股</div>
-      <table id="table-tw"></table>
-    </div>
-    <div class="card">
-      <div class="card-title">長期池美股（美元）</div>
-      <table id="table-us"></table>
+    <div class="card" style="grid-column: span 2">
+      <div class="card-title">長期池配置</div>
+      <div id="long-pool-allocation" style="display:flex;gap:2rem;flex-wrap:wrap;margin-bottom:1rem"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+        <div>
+          <div class="card-title" style="margin-bottom:0.5rem">台股</div>
+          <table id="table-tw"></table>
+        </div>
+        <div>
+          <div class="card-title" style="margin-bottom:0.5rem">美股（美元）</div>
+          <table id="table-us"></table>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -1340,25 +1340,31 @@ function renderHoldingTables(latest) {
   
   const twTarget = '60-70%';
   const usTarget = '30-35%';
-  const twStatus = twTotal / longTotal * 100 > 70 ? 'color:var(--warn)' : twTotal / longTotal * 100 < 60 ? 'color:var(--accent)' : 'color:var(--ok)';
-  const usStatus = usTotal / longTotal * 100 < 30 ? 'color:var(--warn)' : usTotal / longTotal * 100 > 35 ? 'color:var(--accent)' : 'color:var(--ok)';
+  // 台股：>70% 過高(橘)，<60% 過低(藍)，在範圍內(綠)
+  const twPctNum = twTotal / longTotal * 100;
+  const twStatus = twPctNum > 70 ? 'color:var(--warn)' : twPctNum < 60 ? 'color:var(--accent)' : 'color:var(--ok)';
+  const twArrow = twPctNum > 70 ? '↑' : twPctNum < 60 ? '↓' : '';
+  // 美股：>35% 過高(橘)，<30% 過低(藍)，在範圍內(綠)
+  const usPctNum = usTotal / longTotal * 100;
+  const usStatus = usPctNum > 35 ? 'color:var(--warn)' : usPctNum < 30 ? 'color:var(--accent)' : 'color:var(--ok)';
+  const usArrow = usPctNum > 35 ? '↑' : usPctNum < 30 ? '↓' : '';
   
   document.getElementById('long-pool-allocation').innerHTML = `
-    <div style="display:flex;align-items:center;gap:0.75rem">
+    <div style="display:flex;align-items:center;gap:0.5rem">
       <span style="font-weight:600">台股</span>
-      <span style="font-size:1.3rem;${twStatus}">${twPct}%</span>
+      <span style="font-size:1.2rem;${twStatus}">${twPct}%${twArrow}</span>
       <span style="color:var(--muted);font-size:0.85rem">${twTotal.toFixed(0)} 萬</span>
-      <span style="color:var(--muted);font-size:0.8rem">目標 ${twTarget}</span>
+      <span style="color:var(--muted);font-size:0.75rem">目標 ${twTarget}</span>
     </div>
-    <div style="display:flex;align-items:center;gap:0.75rem">
+    <div style="display:flex;align-items:center;gap:0.5rem">
       <span style="font-weight:600">美股</span>
-      <span style="font-size:1.3rem;${usStatus}">${usPct}%</span>
+      <span style="font-size:1.2rem;${usStatus}">${usPct}%${usArrow}</span>
       <span style="color:var(--muted);font-size:0.85rem">${usTotal.toFixed(0)} 萬</span>
-      <span style="color:var(--muted);font-size:0.8rem">目標 ${usTarget}</span>
+      <span style="color:var(--muted);font-size:0.75rem">目標 ${usTarget}</span>
     </div>
-    <div style="display:flex;align-items:center;gap:0.75rem">
+    <div style="display:flex;align-items:center;gap:0.5rem">
       <span style="font-weight:600">現金</span>
-      <span style="font-size:1.3rem">${cashPct}%</span>
+      <span style="font-size:1.2rem">${cashPct}%</span>
       <span style="color:var(--muted);font-size:0.85rem">${(latest.longCash || 0).toFixed(0)} 萬</span>
     </div>
   `;
