@@ -687,6 +687,7 @@ let cachedPrices = {}; // { symbol: { price, timestamp } }
 function markUnsaved() {
   hasUnsaved = true;
   document.title = '● fin — 財務追蹤器';
+  saveToLocalStorage(); // 每次修改都自動存到 localStorage
 }
 
 function markSaved() {
@@ -708,12 +709,41 @@ function loadFile(event) {
         costBasis: { ...DEFAULT_COST_BASIS, ...(loaded.costBasis || {}) },
         prices: loaded.prices || {},
       };
+      saveToLocalStorage(); // 自動存到 localStorage
       enterApp();
       showToast('資料載入成功');
     } catch { alert('JSON 格式錯誤，請確認檔案'); }
   };
   reader.readAsText(file);
   event.target.value = '';
+}
+
+// ===== LOCAL STORAGE =====
+function saveToLocalStorage() {
+  try {
+    localStorage.setItem('fin_db', JSON.stringify(db));
+  } catch (e) {
+    console.error('localStorage 儲存失敗', e);
+  }
+}
+
+function loadFromLocalStorage() {
+  try {
+    const saved = localStorage.getItem('fin_db');
+    if (saved) {
+      const loaded = JSON.parse(saved);
+      db = {
+        settings: { ...DEFAULT_SETTINGS, ...loaded.settings },
+        snapshots: loaded.snapshots || [],
+        costBasis: { ...DEFAULT_COST_BASIS, ...(loaded.costBasis || {}) },
+        prices: loaded.prices || {},
+      };
+      return true;
+    }
+  } catch (e) {
+    console.error('localStorage 讀取失敗', e);
+  }
+  return false;
 }
 
 function startNew() {
@@ -723,6 +753,7 @@ function startNew() {
     costBasis: { ...DEFAULT_COST_BASIS },
     prices: {},
   };
+  saveToLocalStorage(); // 自動存到 localStorage
   enterApp();
   showToast('已建立新資料，請記得儲存');
   markUnsaved();
@@ -1599,6 +1630,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const now = new Date();
   document.getElementById('nav-date').textContent = now.toLocaleDateString('zh-TW', { year:'numeric', month:'long', day:'numeric' });
   document.getElementById('input-month').value = now.toISOString().slice(0,7);
+  
+  // 自動從 localStorage 載入上次的資料
+  if (loadFromLocalStorage()) {
+    enterApp();
+    showToast('自動載入上次資料');
+  }
 });
 
 window.addEventListener('beforeunload', e => {
