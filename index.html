@@ -175,6 +175,8 @@
   </div>
   <div style="display:flex;align-items:center;gap:1rem">
     <div class="nav-date" id="nav-date"></div>
+    <button class="btn btn-secondary" onclick="document.getElementById('load-file-nav').click()" style="padding:0.3rem 0.8rem;font-size:0.8rem">載入資料</button>
+    <input type="file" id="load-file-nav" accept=".json" style="display:none" onchange="loadFile(event)">
     <button class="btn btn-secondary" onclick="saveToFile()" style="padding:0.3rem 0.8rem;font-size:0.8rem">儲存檔案</button>
     <div class="theme-row">
       <span class="theme-label" id="theme-label">🌙</span>
@@ -564,6 +566,14 @@
         <div class="input-group">
           <label>留學年數（年後）</label>
           <input type="number" id="cfg-goal-study-yr" step="1">
+        </div>
+        <div class="input-group">
+          <label>退休金目標（萬）</label>
+          <input type="number" id="cfg-goal-retire" step="100" value="6000">
+        </div>
+        <div class="input-group">
+          <label style="color:var(--muted)">退休年數（固定30年）</label>
+          <input type="number" value="30" disabled style="opacity:0.5">
         </div>
       </div>
     </div>
@@ -1082,6 +1092,11 @@ function mkForecastCharts() {
   const c = calcSnapshot(latest);
   const shortRows = calcShortForecast(c.shortTotal, db.settings);
   const longRows = calcLongForecast(c.longTotal, db.settings);
+  
+  // 取得起始年份（從第一筆資料的月份）
+  const snaps = [...db.snapshots].sort((a,b)=>a.month.localeCompare(b.month));
+  const startYear = snaps.length > 0 ? parseInt(snaps[0].month.slice(0,4)) : new Date().getFullYear();
+  const fmtYear = yr => yr === 0 ? `現在（${startYear}）` : `第${yr}年（${startYear + yr}）`;
 
   destroyChart('short-forecast');
   const ctx1 = document.getElementById('chart-short-forecast').getContext('2d');
@@ -1089,7 +1104,7 @@ function mkForecastCharts() {
   charts['short-forecast'] = new Chart(ctx1, {
     type: 'bar',
     data: {
-      labels: shortRows.map(r=>'第'+r.yr+'年'),
+      labels: shortRows.map(r=> r.yr === 0 ? startYear : startYear + r.yr),
       datasets: [
         { label: '期末金額', data: shortRows.map(r=>+r.end.toFixed(1)), backgroundColor: shortRows.map(r=>r.end<0?'rgba(255,107,138,0.7)':'rgba(108,143,255,0.7)'), borderWidth: 0 },
       ]
@@ -1109,7 +1124,7 @@ function mkForecastCharts() {
   charts['long-forecast'] = new Chart(ctx2, {
     type: 'line',
     data: {
-      labels: longRows.map(r=>'第'+r.yr+'年'),
+      labels: longRows.map(r=> r.yr === 0 ? startYear : startYear + r.yr),
       datasets: [{ label: '長期池', data: longRows.map(r=>+r.end.toFixed(1)), borderColor: '#43e8b0', backgroundColor: 'rgba(67,232,176,0.08)', tension: 0.3, fill: true, pointRadius: 3 }]
     },
     options: {
@@ -1126,7 +1141,7 @@ function mkForecastCharts() {
   const fmtW = v => v > 0 ? `<span style="color:var(--warn)">-${v.toFixed(1)}</span>` : '<span style="color:var(--muted)">—</span>';
   tb1.innerHTML = shortRows.slice(1).map(r=>`
     <tr>
-      <td>第${r.yr}年</td>
+      <td>第${r.yr}年（${startYear + r.yr}）</td>
       <td class="num">${r.start.toFixed(1)}</td>
       <td class="num">${r.invest.toFixed(1)}</td>
       <td class="num">${r.yield.toFixed(1)}</td>
@@ -1138,7 +1153,7 @@ function mkForecastCharts() {
   const tb2 = document.getElementById('tbody-long-forecast');
   tb2.innerHTML = longRows.slice(1).map(r=>`
     <tr>
-      <td>第${r.yr}年</td>
+      <td>第${r.yr}年（${startYear + r.yr}）</td>
       <td class="num">${r.start.toFixed(1)}</td>
       <td class="num">${r.invest.toFixed(1)}</td>
       <td class="num">${r.yield.toFixed(1)}</td>
@@ -1184,11 +1199,13 @@ function renderOverview() {
   const goalBabyForecast = shortRows[s.goals.baby.years]?.beforeWithdraw || 0;
   const goalHouseForecast = shortRows[s.goals.house.years]?.beforeWithdraw || 0;
   const goalStudyForecast = longRows[s.goals.study.years]?.beforeWithdraw || 0;
+  const goalRetireForecast = longRows[30]?.end || 0; // 30年後剩餘
 
   const goals = [
     { name: '小孩出生預備金', target: s.goals.baby.amount, current: c.shortTotal, forecast: goalBabyForecast, yr: s.goals.baby.years, pool: '短中期池' },
     { name: '換房頭期款', target: s.goals.house.amount, current: c.shortTotal, forecast: goalHouseForecast, yr: s.goals.house.years, pool: '短中期池' },
     { name: '小孩留學基金', target: s.goals.study.amount, current: c.longTotal, forecast: goalStudyForecast, yr: s.goals.study.years, pool: '長期池' },
+    { name: '退休金', target: s.goals.retire?.amount || 6000, current: c.longTotal, forecast: goalRetireForecast, yr: 30, pool: '長期池' },
   ];
 
   const gl = document.getElementById('goal-progress-list');
@@ -1537,6 +1554,7 @@ function renderSettings() {
   document.getElementById('cfg-goal-house-yr').value = s.goals.house.years;
   document.getElementById('cfg-goal-study').value = s.goals.study.amount;
   document.getElementById('cfg-goal-study-yr').value = s.goals.study.years;
+  document.getElementById('cfg-goal-retire').value = s.goals.retire?.amount || 6000;
   document.getElementById('cfg-tsmc-limit').value = s.tsmcLimit || 40;
   document.getElementById('cfg-tech-limit').value = s.techLimit || 45;
 }
@@ -1551,6 +1569,7 @@ function saveSettings() {
       baby: { amount: +document.getElementById('cfg-goal-baby').value, years: +document.getElementById('cfg-goal-baby-yr').value },
       house: { amount: +document.getElementById('cfg-goal-house').value, years: +document.getElementById('cfg-goal-house-yr').value },
       study: { amount: +document.getElementById('cfg-goal-study').value, years: +document.getElementById('cfg-goal-study-yr').value },
+      retire: { amount: +document.getElementById('cfg-goal-retire').value, years: 30 },
     },
     tsmcLimit: +document.getElementById('cfg-tsmc-limit').value,
     techLimit: +document.getElementById('cfg-tech-limit').value,
