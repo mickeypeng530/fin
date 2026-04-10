@@ -382,60 +382,60 @@
     <div class="input-section">
       <h3>長期池 — 美股</h3>
       <div class="input-grid">
+        <div class="input-group" style="background:var(--card2);padding:0.75rem;border-radius:8px;border:1px solid var(--accent)">
+          <label style="color:var(--accent);font-weight:600">美股合計（美元）</label>
+          <input type="number" id="in-lt-us-usd" placeholder="0" step="1" oninput="updateSums()">
+          <div style="margin-top:0.3rem;font-size:0.9rem">
+            <span style="color:var(--muted)">→</span>
+            <span id="sum-us-twd" style="font-weight:600;color:var(--accent)">0 萬台幣</span>
+          </div>
+        </div>
         <div class="input-group">
           <label>USD/TWD 匯率 <button onclick="fetchRate()" style="margin-left:0.4rem;padding:0.1rem 0.5rem;font-size:0.72rem;border-radius:4px;border:1px solid var(--border);background:var(--card2);color:var(--accent);cursor:pointer">即時抓取</button></label>
           <input type="number" id="in-usdtwd" placeholder="32" step="0.01" oninput="updateSums()">
           <span style="font-size:0.75rem;color:var(--muted)" id="rate-source"></span>
         </div>
-        <div class="input-group" style="background:var(--card2);padding:0.75rem;border-radius:8px;border:1px solid var(--accent)">
-          <label style="color:var(--accent);font-weight:600">美股合計</label>
-          <div style="display:flex;gap:1rem;align-items:center;margin-top:0.3rem">
-            <span id="sum-us-usd" style="font-size:1.1rem;font-weight:600">$0</span>
-            <span style="color:var(--muted)">→</span>
-            <span id="sum-us-twd" style="font-size:1.1rem;font-weight:600;color:var(--accent)">0 萬</span>
-          </div>
-        </div>
       </div>
-      <div style="margin-top:1rem;font-size:0.8rem;color:var(--muted)">▼ 個股明細（輸入美元）</div>
-      <div class="input-grid" style="margin-top:0.5rem">
+      <div style="margin-top:1rem;font-size:0.8rem;color:var(--muted)">▼ 個股明細（記錄用，美元）</div>
+      <div class="input-grid" style="margin-top:0.5rem;opacity:0.85">
         <div class="input-group">
           <label>VTI</label>
-          <input type="number" id="in-us-vti" placeholder="0" step="1" data-stock="VTI" data-market="US" oninput="updateSums()">
+          <input type="number" id="in-us-vti" placeholder="0" step="1" data-stock="VTI" data-market="US">
           <div class="price-info" id="price-us-vti"></div>
         </div>
         <div class="input-group">
           <label>QQQ</label>
-          <input type="number" id="in-us-qqq" placeholder="0" step="1" data-stock="QQQ" data-market="US" oninput="updateSums()">
+          <input type="number" id="in-us-qqq" placeholder="0" step="1" data-stock="QQQ" data-market="US">
           <div class="price-info" id="price-us-qqq"></div>
         </div>
         <div class="input-group">
           <label>VPL</label>
-          <input type="number" id="in-us-vpl" placeholder="0" step="1" data-stock="VPL" data-market="US" oninput="updateSums()">
+          <input type="number" id="in-us-vpl" placeholder="0" step="1" data-stock="VPL" data-market="US">
           <div class="price-info" id="price-us-vpl"></div>
         </div>
         <div class="input-group">
           <label>VGK</label>
-          <input type="number" id="in-us-vgk" placeholder="0" step="1" data-stock="VGK" data-market="US" oninput="updateSums()">
+          <input type="number" id="in-us-vgk" placeholder="0" step="1" data-stock="VGK" data-market="US">
           <div class="price-info" id="price-us-vgk"></div>
         </div>
         <div class="input-group">
           <label>TSLA</label>
-          <input type="number" id="in-us-tsla" placeholder="0" step="1" data-stock="TSLA" data-market="US" oninput="updateSums()">
+          <input type="number" id="in-us-tsla" placeholder="0" step="1" data-stock="TSLA" data-market="US">
           <div class="price-info" id="price-us-tsla"></div>
         </div>
         <div class="input-group">
           <label>TSM</label>
-          <input type="number" id="in-us-tsm" placeholder="0" step="1" data-stock="TSM" data-market="US" oninput="updateSums()">
+          <input type="number" id="in-us-tsm" placeholder="0" step="1" data-stock="TSM" data-market="US">
           <div class="price-info" id="price-us-tsm"></div>
         </div>
         <div class="input-group">
           <label>NVDA</label>
-          <input type="number" id="in-us-nvda" placeholder="0" step="1" data-stock="NVDA" data-market="US" oninput="updateSums()">
+          <input type="number" id="in-us-nvda" placeholder="0" step="1" data-stock="NVDA" data-market="US">
           <div class="price-info" id="price-us-nvda"></div>
         </div>
         <div class="input-group">
           <label>VWO</label>
-          <input type="number" id="in-us-vwo" placeholder="0" step="1" data-stock="VWO" data-market="US" oninput="updateSums()">
+          <input type="number" id="in-us-vwo" placeholder="0" step="1" data-stock="VWO" data-market="US">
           <div class="price-info" id="price-us-vwo"></div>
         </div>
       </div>
@@ -1110,13 +1110,14 @@ function mkHistoryChart() {
   const longs = snaps.map(s=>calcSnapshot(s).longTotal);
   const shorts = snaps.map(s=>calcSnapshot(s).shortTotal);
   
-  // Y軸動態調整：資料範圍 ±20%
+  // Y軸動態調整：資料範圍 ±20%，最小範圍 50 萬
   const allValues = [...totals, ...longs, ...shorts];
   const minVal = Math.min(...allValues);
   const maxVal = Math.max(...allValues);
-  const range = maxVal - minVal || 1;
-  const yMin = Math.max(0, minVal - range * 0.2);
-  const yMax = maxVal + range * 0.2;
+  const range = Math.max(maxVal - minVal, 50); // 最小範圍 50 萬
+  const padding = range * 0.2;
+  const yMin = Math.max(0, minVal - padding);
+  const yMax = maxVal + padding;
   
   const ctx = document.getElementById('chart-history').getContext('2d');
   const tc = themeColors();
@@ -1243,13 +1244,32 @@ function mkForecastCharts() {
     }
   });
 
+  // 目前實際值 vs 預測值的分析
+  const shortActual = latestCalc.shortTotal;
+  const shortExpected = shortRows[currentYrIndex - 1]?.end || 0;
+  const shortDiff = shortActual - shortExpected;
+  const shortAnalysis = shortDiff >= 0 
+    ? `<span style="color:var(--ok)">超前 ${shortDiff.toFixed(1)} 萬 ✓</span>`
+    : `<span style="color:var(--danger)">落後 ${Math.abs(shortDiff).toFixed(1)} 萬，需加速</span>`;
+    
+  const longActual = latestCalc.longTotal;
+  const longExpected = longRows[currentYrIndex - 1]?.end || 0;
+  const longDiff = longActual - longExpected;
+  const longAnalysis = longDiff >= 0 
+    ? `<span style="color:var(--ok)">超前 ${longDiff.toFixed(1)} 萬 ✓</span>`
+    : `<span style="color:var(--danger)">落後 ${Math.abs(longDiff).toFixed(1)} 萬，需加速</span>`;
+
   // 表格：標示目前位置
   const tb1 = document.getElementById('tbody-short-forecast');
   const fmtW = v => v > 0 ? `<span style="color:var(--warn)">-${v.toFixed(1)}</span>` : '<span style="color:var(--muted)">—</span>';
   tb1.innerHTML = shortRows.map(r => {
     const isCurrent = r.yr === currentYrIndex;
     const rowStyle = isCurrent ? 'background:var(--card2);border-left:3px solid var(--warn)' : r.yr === 1 ? 'background:var(--card2)' : '';
-    const label = isCurrent ? `第${r.yr}年（${startYear + r.yr - 1}）<span style="color:var(--warn);font-size:0.75rem;margin-left:0.3rem">← 目前</span>` : `第${r.yr}年（${startYear + r.yr - 1}）`;
+    let label = `第${r.yr}年（${startYear + r.yr - 1}）`;
+    if (isCurrent) {
+      label += `<div style="font-size:0.75rem;margin-top:0.2rem;color:var(--warn)">← 目前：${shortActual.toFixed(1)} 萬（預測 ${shortExpected.toFixed(1)} 萬）</div>`;
+      label += `<div style="font-size:0.75rem">${shortAnalysis}</div>`;
+    }
     return `<tr style="${rowStyle}">
       <td>${label}</td>
       <td class="num">${r.start.toFixed(1)}</td>
@@ -1265,7 +1285,11 @@ function mkForecastCharts() {
   tb2.innerHTML = longRows.map(r => {
     const isCurrent = r.yr === currentYrIndex;
     const rowStyle = isCurrent ? 'background:var(--card2);border-left:3px solid var(--warn)' : r.yr === 1 ? 'background:var(--card2)' : '';
-    const label = isCurrent ? `第${r.yr}年（${startYear + r.yr - 1}）<span style="color:var(--warn);font-size:0.75rem;margin-left:0.3rem">← 目前</span>` : `第${r.yr}年（${startYear + r.yr - 1}）`;
+    let label = `第${r.yr}年（${startYear + r.yr - 1}）`;
+    if (isCurrent) {
+      label += `<div style="font-size:0.75rem;margin-top:0.2rem;color:var(--warn)">← 目前：${longActual.toFixed(1)} 萬（預測 ${longExpected.toFixed(1)} 萬）</div>`;
+      label += `<div style="font-size:0.75rem">${longAnalysis}</div>`;
+    }
     return `<tr style="${rowStyle}">
       <td>${label}</td>
       <td class="num">${r.start.toFixed(1)}</td>
@@ -1434,6 +1458,12 @@ function renderHoldingTables(latest) {
   const usPct = longTotal > 0 ? (usTotal / longTotal * 100).toFixed(1) : 0;
   const cashPct = longTotal > 0 ? ((latest.longCash || 0) / longTotal * 100).toFixed(1) : 0;
   
+  // 計算目標金額範圍
+  const twTargetMin = (longTotal * 0.60).toFixed(0);
+  const twTargetMax = (longTotal * 0.70).toFixed(0);
+  const usTargetMin = (longTotal * 0.30).toFixed(0);
+  const usTargetMax = (longTotal * 0.35).toFixed(0);
+  
   const twTarget = '60-70%';
   const usTarget = '30-35%';
   // 台股：>70% 過高(橘)，<60% 過低(藍)，在範圍內(綠)
@@ -1450,7 +1480,9 @@ function renderHoldingTables(latest) {
       <span style="font-weight:600;font-size:0.9rem">台股</span>
       <span style="font-size:1.4rem;font-weight:600;${twStatus}">${twPct}%</span>${twLabel}
       <span style="color:var(--muted);font-size:0.85rem">${twTotal.toFixed(0)} 萬</span>
-      <span style="color:var(--muted);font-size:0.75rem">目標 ${twTarget}</span>
+    </div>
+    <div style="font-size:0.75rem;color:var(--muted);margin-top:0.2rem">
+      目標 ${twTarget} → ${twTargetMin}-${twTargetMax} 萬
     </div>
   `;
   
@@ -1459,7 +1491,9 @@ function renderHoldingTables(latest) {
       <span style="font-weight:600;font-size:0.9rem">美股</span>
       <span style="font-size:1.4rem;font-weight:600;${usStatus}">${usPct}%</span>${usLabel}
       <span style="color:var(--muted);font-size:0.85rem">${usTotal.toFixed(0)} 萬</span>
-      <span style="color:var(--muted);font-size:0.75rem">目標 ${usTarget}</span>
+    </div>
+    <div style="font-size:0.75rem;color:var(--muted);margin-top:0.2rem">
+      目標 ${usTarget} → ${usTargetMin}-${usTargetMax} 萬
     </div>
   `;
   
@@ -1653,6 +1687,12 @@ function getInputDate() {
 function saveSnapshot() {
   const date = getInputDate();
   if (!date) { alert('請選擇或輸入日期'); return; }
+  
+  // 美股合計：手動輸入美元，換算成萬台幣
+  const usUsd = +document.getElementById('in-lt-us-usd').value || 0;
+  const usdtwd = +document.getElementById('in-usdtwd').value || 32;
+  const usTwd = usUsd * usdtwd / 10000;
+  
   const snap = {
     date,
     reserve: +document.getElementById('in-reserve').value || 0,
@@ -1661,7 +1701,6 @@ function saveSnapshot() {
       b00720b: +document.getElementById('in-st-00720b').value || 0,
       deposit: +document.getElementById('in-st-deposit').value || 0,
     },
-    // 長期池合計（手動輸入）
     longPoolTW: {
       total: +document.getElementById('in-lt-tw-total').value || 0,
       tw50: +document.getElementById('in-lt-tw50').value || 0,
@@ -1674,7 +1713,8 @@ function saveSnapshot() {
       b00720b: +document.getElementById('in-lt-00720b').value || 0,
     },
     longPoolUS: {
-      // 美股個股（美元）
+      total: usTwd, // 萬台幣
+      totalUsd: usUsd, // 美元（記錄用）
       vti: +document.getElementById('in-us-vti').value || 0,
       qqq: +document.getElementById('in-us-qqq').value || 0,
       vpl: +document.getElementById('in-us-vpl').value || 0,
@@ -1683,20 +1723,10 @@ function saveSnapshot() {
       tsm: +document.getElementById('in-us-tsm').value || 0,
       nvda: +document.getElementById('in-us-nvda').value || 0,
       vwo: +document.getElementById('in-us-vwo').value || 0,
-      // total 改為萬台幣（自動計算）
-      get total() {
-        const usUsd = this.vti + this.qqq + this.vpl + this.vgk + this.tsla + this.tsm + this.nvda + this.vwo;
-        const usdtwd = +document.getElementById('in-usdtwd').value || 32;
-        return usUsd * usdtwd / 10000;
-      }
     },
     longCash: +document.getElementById('in-lt-cash').value || 0,
-    usdtwd: +document.getElementById('in-usdtwd').value || 32,
+    usdtwd: usdtwd,
   };
-  // 計算 longPoolUS.total 並存入（避免 getter 問題）
-  const usUsd = snap.longPoolUS.vti + snap.longPoolUS.qqq + snap.longPoolUS.vpl + snap.longPoolUS.vgk + 
-                snap.longPoolUS.tsla + snap.longPoolUS.tsm + snap.longPoolUS.nvda + snap.longPoolUS.vwo;
-  snap.longPoolUS.total = usUsd * snap.usdtwd / 10000;
   
   const idx = db.snapshots.findIndex(s=>s.date===date);
   if (idx >= 0) db.snapshots[idx] = snap; else db.snapshots.push(snap);
@@ -1723,8 +1753,13 @@ function loadLatestToForm() {
   document.getElementById('in-lt-2330').value = s.longPoolTW?.n2330||'';
   document.getElementById('in-lt-2646').value = s.longPoolTW?.n2646||'';
   document.getElementById('in-lt-00720b').value = s.longPoolTW?.b00720b||'';
-  // 美股合計
-  document.getElementById('in-lt-us-total').value = s.longPoolUS?.total||'';
+  // 美股合計（美元）- 優先用 totalUsd，向下相容用 total 反算
+  const usdtwd = s.usdtwd || 32;
+  let usUsd = s.longPoolUS?.totalUsd;
+  if (!usUsd && s.longPoolUS?.total) {
+    usUsd = s.longPoolUS.total * 10000 / usdtwd; // 從萬台幣反算美元
+  }
+  document.getElementById('in-lt-us-usd').value = usUsd || '';
   document.getElementById('in-us-vti').value = s.longPoolUS?.vti||'';
   document.getElementById('in-us-qqq').value = s.longPoolUS?.qqq||'';
   document.getElementById('in-us-vpl').value = s.longPoolUS?.vpl||'';
@@ -1734,7 +1769,7 @@ function loadLatestToForm() {
   document.getElementById('in-us-nvda').value = s.longPoolUS?.nvda||'';
   document.getElementById('in-us-vwo').value = s.longPoolUS?.vwo||'';
   document.getElementById('in-lt-cash').value = s.longCash||'';
-  document.getElementById('in-usdtwd').value = s.usdtwd||32;
+  document.getElementById('in-usdtwd').value = usdtwd;
   updateSums(); // 更新合計
 }
 
@@ -1847,23 +1882,11 @@ function updateSums() {
     (+document.getElementById('in-st-deposit').value || 0);
   document.getElementById('sum-short').textContent = `合計: ${shortSum.toFixed(1)} 萬`;
   
-  // 美股合計（美元）
-  const usUsd = 
-    (+document.getElementById('in-us-vti').value || 0) +
-    (+document.getElementById('in-us-qqq').value || 0) +
-    (+document.getElementById('in-us-vpl').value || 0) +
-    (+document.getElementById('in-us-vgk').value || 0) +
-    (+document.getElementById('in-us-tsla').value || 0) +
-    (+document.getElementById('in-us-tsm').value || 0) +
-    (+document.getElementById('in-us-nvda').value || 0) +
-    (+document.getElementById('in-us-vwo').value || 0);
-  
-  // 匯率換算
+  // 美股合計（手動輸入美元）換算成萬台幣
+  const usUsd = +document.getElementById('in-lt-us-usd').value || 0;
   const usdtwd = +document.getElementById('in-usdtwd').value || 32;
   const usTwd = usUsd * usdtwd / 10000; // 萬台幣
-  
-  document.getElementById('sum-us-usd').textContent = `$${usUsd.toLocaleString()}`;
-  document.getElementById('sum-us-twd').textContent = `${usTwd.toFixed(1)} 萬`;
+  document.getElementById('sum-us-twd').textContent = `${usTwd.toFixed(1)} 萬台幣`;
   
   // 長期池總計
   const twTotal = +document.getElementById('in-lt-tw-total').value || 0;
