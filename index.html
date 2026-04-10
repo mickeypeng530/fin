@@ -278,8 +278,9 @@
       </div>
       <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap">
         <div>
-          <label style="font-size:0.85rem;color:var(--muted);margin-right:0.5rem">輸入月份</label>
-          <input type="month" id="input-month" style="background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:0.4rem 0.75rem;color:var(--text);font-size:0.9rem">
+          <label style="font-size:0.85rem;color:var(--muted);margin-right:0.5rem">記錄日期</label>
+          <input type="date" id="input-date" style="background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:0.4rem 0.75rem;color:var(--text);font-size:0.9rem">
+          <input type="text" id="input-date-text" placeholder="或輸入 20260410" maxlength="8" style="background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:0.4rem 0.75rem;color:var(--text);font-size:0.9rem;width:120px;margin-left:0.5rem" oninput="syncDateFromText()">
         </div>
         <button class="btn btn-secondary" onclick="fetchAllPrices()" id="btn-fetch-prices" style="padding:0.4rem 0.8rem;font-size:0.85rem">
           🔄 抓取股價
@@ -451,7 +452,7 @@
     </div>
 
     <div class="btn-row">
-      <button class="btn btn-primary" onclick="saveMonth()">儲存本月資料</button>
+      <button class="btn btn-primary" onclick="saveSnapshot()">儲存本次資料</button>
       <button class="btn btn-secondary" onclick="loadLatestToForm()">載入最新資料</button>
       <span class="save-msg" id="save-msg"></span>
     </div>
@@ -472,7 +473,7 @@
     <div style="max-height:500px;overflow-y:auto">
       <table id="table-history">
         <thead style="position:sticky;top:0;background:var(--card);z-index:1"><tr>
-          <th>月份</th>
+          <th>日期</th>
           <th class="num">總資產</th>
           <th class="num">長期池</th>
           <th class="num">短中期池</th>
@@ -751,7 +752,10 @@ function loadFile(event) {
       saveToLocalStorage(); // 自動存到 localStorage
       enterApp();
       showToast('資料載入成功');
-    } catch { alert('JSON 格式錯誤，請確認檔案'); }
+    } catch (e) { 
+      console.error('JSON 解析錯誤:', e);
+      alert('JSON 格式錯誤，請確認檔案\n\n錯誤詳情: ' + e.message); 
+    }
   };
   reader.readAsText(file);
   event.target.value = '';
@@ -912,6 +916,23 @@ async function fetchAllPrices() {
 }
 
 // ===== COMPUTED =====
+// 向下相容：支援舊的 month 格式和新的 date 格式
+function getDateKey(s) {
+  return s.date || s.month || '';
+}
+
+function getDisplayDate(s) {
+  const key = getDateKey(s);
+  // 如果是完整日期 2026-03-31，顯示為 2026-03-31
+  // 如果是舊格式 2026-03，顯示為 2026-03
+  return key;
+}
+
+function getYear(s) {
+  const key = getDateKey(s);
+  return key ? parseInt(key.slice(0,4)) : new Date().getFullYear();
+}
+
 function calcSnapshot(s) {
   const usd = s.usdtwd || 32;
   const shortTotal = (s.shortPool?.fubong50||0) + (s.shortPool?.b00720b||0) + (s.shortPool?.deposit||0);
@@ -1079,8 +1100,8 @@ function mkAllocationChart() {
 
 function mkHistoryChart() {
   destroyChart('history');
-  const snaps = [...db.snapshots].sort((a,b)=>a.month.localeCompare(b.month));
-  const labels = snaps.map(s=>s.month);
+  const snaps = [...db.snapshots].sort((a,b)=>getDateKey(a).localeCompare(getDateKey(b)));
+  const labels = snaps.map(s=>getDisplayDate(s));
   const totals = snaps.map(s=>calcSnapshot(s).total);
   const longs = snaps.map(s=>calcSnapshot(s).longTotal);
   const shorts = snaps.map(s=>calcSnapshot(s).shortTotal);
@@ -1115,8 +1136,8 @@ function mkForecastCharts() {
   const longRows = calcLongForecast(c.longTotal, db.settings);
   
   // 取得起始年份（從第一筆資料的月份）
-  const snaps = [...db.snapshots].sort((a,b)=>a.month.localeCompare(b.month));
-  const startYear = snaps.length > 0 ? parseInt(snaps[0].month.slice(0,4)) : new Date().getFullYear();
+  const snaps = [...db.snapshots].sort((a,b)=>getDateKey(a).localeCompare(getDateKey(b)));
+  const startYear = snaps.length > 0 ? getYear(snaps[0]) : new Date().getFullYear();
 
   destroyChart('short-forecast');
   const ctx1 = document.getElementById('chart-short-forecast').getContext('2d');
@@ -1185,7 +1206,7 @@ function mkForecastCharts() {
 
 // ===== RENDER OVERVIEW =====
 function renderOverview() {
-  const snaps = [...db.snapshots].sort((a,b)=>a.month.localeCompare(b.month));
+  const snaps = [...db.snapshots].sort((a,b)=>getDateKey(a).localeCompare(getDateKey(b)));
   if (!snaps.length) return;
   const latest = snaps[snaps.length - 1];
   const prev = snaps.length > 1 ? snaps[snaps.length - 2] : null;
@@ -1454,7 +1475,7 @@ function renderHoldingTables(latest) {
 
 // ===== RENDER HISTORY =====
 function renderHistory() {
-  const snaps = [...db.snapshots].sort((a,b)=>a.month.localeCompare(b.month));
+  const snaps = [...db.snapshots].sort((a,b)=>getDateKey(a).localeCompare(getDateKey(b)));
 
   const tbody = document.getElementById('tbody-history');
   tbody.innerHTML = snaps.map((s,i)=>{
@@ -1466,8 +1487,9 @@ function renderHistory() {
     const tw = s.longPoolTW || {};
     const us = s.longPoolUS || {};
     const sp = s.shortPool || {};
+    const dateKey = getDateKey(s);
 
-    const detail = `<tr class="detail-row" id="detail-${s.month}" style="display:none">
+    const detail = `<tr class="detail-row" id="detail-${dateKey}" style="display:none">
       <td colspan="7" style="padding:0.75rem 1rem;background:var(--card2);border-radius:8px">
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1.5rem;font-size:0.82rem">
           <div>
@@ -1491,14 +1513,14 @@ function renderHistory() {
       </td>
     </tr>`;
 
-    return `<tr onclick="toggleDetail('${s.month}')" style="cursor:pointer;transition:background 0.2s" onmouseover="this.style.background='var(--card2)'" onmouseout="this.style.background=''">
-      <td><span style="margin-right:0.3rem;font-size:0.7rem;color:var(--muted)" id="arrow-${s.month}">▶</span>${s.month}</td>
+    return `<tr onclick="toggleDetail('${dateKey}')" style="cursor:pointer;transition:background 0.2s" onmouseover="this.style.background='var(--card2)'" onmouseout="this.style.background=''">
+      <td><span style="margin-right:0.3rem;font-size:0.7rem;color:var(--muted)" id="arrow-${dateKey}">▶</span>${dateKey}</td>
       <td class="num">${c.total.toFixed(1)}</td>
       <td class="num">${c.longTotal.toFixed(1)}</td>
       <td class="num">${c.shortTotal.toFixed(1)}</td>
       <td class="num">${s.reserve||0}</td>
       <td class="num">${dStr}</td>
-      <td><button onclick="event.stopPropagation();deleteSnapshot('${s.month}')" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:0.75rem;opacity:0.5" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.5">刪除</button></td>
+      <td><button onclick="event.stopPropagation();deleteSnapshot('${dateKey}')" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:0.75rem;opacity:0.5" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.5">刪除</button></td>
     </tr>${detail}`;
   }).join('');
 
@@ -1518,21 +1540,47 @@ function toggleDetail(month) {
 }
 
 // ===== DELETE SNAPSHOT =====
-function deleteSnapshot(month) {
-  if (!confirm('確定刪除 ' + month + ' 的資料？')) return;
-  db.snapshots = db.snapshots.filter(s => s.month !== month);
+function deleteSnapshot(dateKey) {
+  if (!confirm('確定刪除 ' + dateKey + ' 的資料？')) return;
+  db.snapshots = db.snapshots.filter(s => getDateKey(s) !== dateKey);
   markUnsaved();
   renderHistory();
   renderOverview();
-  showToast('已刪除 ' + month);
+  showToast('已刪除 ' + dateKey);
 }
 
 // ===== INPUT =====
-function saveMonth() {
-  const month = document.getElementById('input-month').value;
-  if (!month) { alert('請選擇月份'); return; }
+function syncDateFromText() {
+  const text = document.getElementById('input-date-text').value.trim();
+  if (text.length === 8 && /^\d{8}$/.test(text)) {
+    const year = text.slice(0,4);
+    const month = text.slice(4,6);
+    const day = text.slice(6,8);
+    document.getElementById('input-date').value = `${year}-${month}-${day}`;
+  }
+}
+
+function getInputDate() {
+  // 優先用日期選擇器的值
+  const dateInput = document.getElementById('input-date').value;
+  if (dateInput) return dateInput;
+  
+  // 否則嘗試解析文字輸入
+  const text = document.getElementById('input-date-text').value.trim();
+  if (text.length === 8 && /^\d{8}$/.test(text)) {
+    const year = text.slice(0,4);
+    const month = text.slice(4,6);
+    const day = text.slice(6,8);
+    return `${year}-${month}-${day}`;
+  }
+  return '';
+}
+
+function saveSnapshot() {
+  const date = getInputDate();
+  if (!date) { alert('請選擇或輸入日期'); return; }
   const snap = {
-    month,
+    date,
     reserve: +document.getElementById('in-reserve').value || 0,
     shortPool: {
       fubong50: +document.getElementById('in-st-fubong50').value || 0,
@@ -1565,15 +1613,15 @@ function saveMonth() {
     longCash: +document.getElementById('in-lt-cash').value || 0,
     usdtwd: +document.getElementById('in-usdtwd').value || 32,
   };
-  const idx = db.snapshots.findIndex(s=>s.month===month);
+  const idx = db.snapshots.findIndex(s=>s.date===date);
   if (idx >= 0) db.snapshots[idx] = snap; else db.snapshots.push(snap);
   markUnsaved();
-  showToast('已更新 ' + month + '（記得儲存檔案）');
+  showToast('已更新 ' + date + '（記得儲存檔案）');
   renderOverview(); renderHistory();
 }
 
 function loadLatestToForm() {
-  const snaps = [...db.snapshots].sort((a,b)=>a.month.localeCompare(b.month));
+  const snaps = [...db.snapshots].sort((a,b)=>getDateKey(a).localeCompare(getDateKey(b)));
   const s = snaps[snaps.length-1];
   if (!s) return;
   document.getElementById('in-reserve').value = s.reserve||'';
@@ -1766,7 +1814,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadTheme();
   const now = new Date();
   document.getElementById('nav-date').textContent = now.toLocaleDateString('zh-TW', { year:'numeric', month:'long', day:'numeric' });
-  document.getElementById('input-month').value = now.toISOString().slice(0,7);
+  document.getElementById('input-date').value = now.toISOString().slice(0,10);
   
   // 自動從 localStorage 載入上次的資料
   if (loadFromLocalStorage()) {
