@@ -242,14 +242,16 @@
     <div class="card">
       <div class="card-title">📋 投資建議</div>
       <div id="advice-display">
-        <!-- 自動檢測 -->
-        <div style="margin-bottom:1rem">
-          <div style="font-size:0.8rem;color:var(--muted);margin-bottom:0.5rem">⚡ 配置狀態</div>
-          <div id="advice-allocation-status" style="font-size:0.9rem;line-height:1.6"></div>
+        <!-- 總體配置 -->
+        <div style="margin-bottom:0.75rem">
+          <div style="font-size:0.8rem;color:var(--muted);margin-bottom:0.5rem">⚡ 總體配置</div>
+          <div id="advice-allocation-status" style="font-size:0.9rem;line-height:1.8"></div>
         </div>
         <!-- Claude 建議 -->
         <div id="advice-claude-section" style="display:none;border-top:1px solid var(--border);padding-top:0.75rem">
           <div style="font-size:0.8rem;color:var(--muted);margin-bottom:0.5rem">🤖 Claude 建議 <span id="advice-date" style="color:var(--accent)"></span></div>
+          <div id="advice-market" style="font-size:0.85rem;color:var(--muted);margin-bottom:0.5rem;padding:0.5rem;background:var(--card2);border-radius:6px"></div>
+          <div style="font-size:0.8rem;color:var(--muted);margin:0.5rem 0 0.3rem">💡 本月操作</div>
           <div id="advice-dca" style="font-size:0.9rem;line-height:1.6;margin-bottom:0.5rem"></div>
           <div id="advice-triggers" style="font-size:0.85rem;color:var(--muted);margin-bottom:0.5rem"></div>
           <div id="advice-notes" style="font-size:0.85rem;color:var(--warn);font-style:italic"></div>
@@ -260,9 +262,9 @@
         </div>
       </div>
       <!-- 資產配置圓餅圖（縮小） -->
-      <div style="border-top:1px solid var(--border);margin-top:1rem;padding-top:0.75rem">
+      <div style="border-top:1px solid var(--border);margin-top:0.75rem;padding-top:0.75rem">
         <div style="font-size:0.8rem;color:var(--muted);margin-bottom:0.5rem">資產配置</div>
-        <div class="chart-wrap" style="height:160px"><canvas id="chart-allocation"></canvas></div>
+        <div class="chart-wrap" style="height:150px"><canvas id="chart-allocation"></canvas></div>
       </div>
     </div>
   </div>
@@ -549,7 +551,7 @@
   <div class="grid-2">
     <div class="card">
       <div class="card-title">短中期池逐年明細</div>
-      <div style="max-height:240px;overflow-y:auto">
+      <div style="max-height:320px;overflow-y:auto">
         <table>
           <thead style="position:sticky;top:0;background:var(--card);z-index:1"><tr><th>年</th><th class="num">期初</th><th class="num">投入</th><th class="num">收益</th><th class="num">提領</th><th class="num">期末</th><th>事件</th></tr></thead>
           <tbody id="tbody-short-forecast"></tbody>
@@ -558,7 +560,7 @@
     </div>
     <div class="card">
       <div class="card-title">長期池逐年明細</div>
-      <div style="max-height:240px;overflow-y:auto">
+      <div style="max-height:320px;overflow-y:auto">
         <table>
           <thead style="position:sticky;top:0;background:var(--card);z-index:1"><tr><th>年</th><th class="num">期初</th><th class="num">投入</th><th class="num">收益</th><th class="num">提領</th><th class="num">期末</th><th>事件</th></tr></thead>
           <tbody id="tbody-long-forecast"></tbody>
@@ -2081,38 +2083,43 @@ function showAdviceMsg(msg, color) {
 }
 
 function renderAdvice() {
-  // 1. 自動配置狀態（根據數據計算）
+  // 1. 總體配置（短中期池 + 長期池 + 現金）
   const snaps = [...db.snapshots].sort((a,b)=>getDateKey(a).localeCompare(getDateKey(b)));
   const latest = snaps[snaps.length - 1];
   if (!latest) return;
   
   const c = calcSnapshot(latest);
-  const longTotal = c.longTotal;
-  const twPct = longTotal > 0 ? (c.twTotal / longTotal * 100) : 0;
-  const usPct = longTotal > 0 ? (c.usInTwd / longTotal * 100) : 0;
-  const cashPct = longTotal > 0 ? (c.totalCash / longTotal * 100) : 0;
+  const totalInvest = c.invest; // 短中期 + 長期
+  const shortPct = totalInvest > 0 ? (c.shortTotal / totalInvest * 100) : 0;
+  const longPct = totalInvest > 0 ? (c.longTotal / totalInvest * 100) : 0;
+  const cashPct = totalInvest > 0 ? (c.totalCash / totalInvest * 100) : 0;
   
   // 目標範圍
-  const twTarget = [60, 70];
-  const usTarget = [30, 35];
+  const shortTarget = [10, 12];
   const cashTarget = [5, 8];
   
-  const statusHtml = (label, pct, target, amount) => {
+  const statusHtml = (label, value, pct, target) => {
     let status = '', color = 'var(--ok)';
-    if (pct > target[1]) { status = '偏高'; color = 'var(--warn)'; }
-    else if (pct < target[0]) { status = '偏低'; color = 'var(--accent)'; }
-    else { status = '✓'; }
-    const gap = pct < target[0] ? (target[0] / 100 * longTotal - amount).toFixed(0) : '';
+    if (target) {
+      if (pct > target[1]) { status = '偏高'; color = 'var(--warn)'; }
+      else if (pct < target[0]) { 
+        status = '偏低'; 
+        color = 'var(--accent)'; 
+        const gap = (target[0] / 100 * totalInvest - value).toFixed(0);
+        if (gap > 0) status += ` 缺${gap}萬`;
+      }
+      else { status = '✓'; }
+    }
     return `<div style="display:flex;justify-content:space-between;align-items:center">
-      <span>${label} <span style="color:${color};font-weight:600">${pct.toFixed(1)}%</span></span>
-      <span style="color:${color};font-size:0.85rem">${status}${gap ? ' 缺' + gap + '萬' : ''}</span>
+      <span>${label} <span style="font-weight:600">${value.toFixed(1)}萬</span> <span style="color:var(--muted)">${pct.toFixed(1)}%</span></span>
+      <span style="color:${color};font-size:0.85rem">${target ? '目標'+target[0]+'-'+target[1]+'%' : ''} ${status}</span>
     </div>`;
   };
   
   document.getElementById('advice-allocation-status').innerHTML = 
-    statusHtml('台股', twPct, twTarget, c.twTotal) +
-    statusHtml('美股', usPct, usTarget, c.usInTwd) +
-    statusHtml('現金', cashPct, cashTarget, c.totalCash);
+    statusHtml('短中期池', c.shortTotal, shortPct, shortTarget) +
+    statusHtml('長期池', c.longTotal, longPct, null) +
+    statusHtml('現金水位', c.totalCash, cashPct, cashTarget);
   
   // 2. Claude 建議（從 db.advice）
   const advice = db.advice;
@@ -2124,6 +2131,19 @@ function renderAdvice() {
     emptySection.style.display = 'none';
     
     document.getElementById('advice-date').textContent = advice.date;
+    
+    // 市場概況
+    const marketEl = document.getElementById('advice-market');
+    if (advice.market && advice.market.summary) {
+      marketEl.style.display = 'block';
+      let marketHtml = `📰 `;
+      if (advice.market.twii) marketHtml += `台股 ${advice.market.twii.toLocaleString()} `;
+      if (advice.market.sp500) marketHtml += `｜ S&P ${advice.market.sp500.toLocaleString()} `;
+      marketHtml += `<div style="margin-top:0.3rem">${advice.market.summary}</div>`;
+      marketEl.innerHTML = marketHtml;
+    } else {
+      marketEl.style.display = 'none';
+    }
     
     // DCA 建議
     if (advice.dca) {
@@ -2138,9 +2158,9 @@ function renderAdvice() {
     
     // 觸發點
     if (advice.triggers) {
-      const trigHtml = Object.entries(advice.triggers).map(([k, v]) => {
+      const trigHtml = '⏳ ' + Object.entries(advice.triggers).map(([k, v]) => {
         const status = v.status === '未觸發' ? '<span style="color:var(--muted)">未觸發</span>' : '<span style="color:var(--danger)">已觸發！</span>';
-        return `${k}: ${v.level?.toLocaleString() || ''} ${status}`;
+        return `${k} (${v.level?.toLocaleString() || ''}) ${status}`;
       }).join(' ｜ ');
       document.getElementById('advice-triggers').innerHTML = trigHtml;
     } else {
@@ -2148,7 +2168,7 @@ function renderAdvice() {
     }
     
     // 備註
-    document.getElementById('advice-notes').textContent = advice.notes || '';
+    document.getElementById('advice-notes').textContent = advice.notes ? '💬 ' + advice.notes : '';
   } else {
     claudeSection.style.display = 'none';
     emptySection.style.display = 'block';
