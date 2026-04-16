@@ -771,7 +771,7 @@ const DEFAULT_COST_BASIS = {
 };
 
 // ===== DATA LAYER =====
-let db = { settings: { ...DEFAULT_SETTINGS }, snapshots: [], costBasis: { ...DEFAULT_COST_BASIS }, prices: {} };
+let db = { settings: { ...DEFAULT_SETTINGS }, snapshots: [], costBasis: { ...DEFAULT_COST_BASIS }, prices: {}, advice: null };
 let hasUnsaved = false;
 let cachedPrices = {}; // { symbol: { price, timestamp } }
 
@@ -799,6 +799,7 @@ function loadFile(event) {
         snapshots: loaded.snapshots || [],
         costBasis: { ...DEFAULT_COST_BASIS, ...(loaded.costBasis || {}) },
         prices: loaded.prices || {},
+        advice: loaded.advice || null,
       };
       saveToLocalStorage(); // 自動存到 localStorage
       enterApp();
@@ -831,6 +832,7 @@ function loadFromLocalStorage() {
         snapshots: loaded.snapshots || [],
         costBasis: { ...DEFAULT_COST_BASIS, ...(loaded.costBasis || {}) },
         prices: loaded.prices || {},
+        advice: loaded.advice || null,
       };
       return true;
     }
@@ -846,6 +848,7 @@ function startNew() {
     snapshots: [...SEED_SNAPSHOTS],
     costBasis: { ...DEFAULT_COST_BASIS },
     prices: {},
+    advice: null,
   };
   saveToLocalStorage(); // 自動存到 localStorage
   enterApp();
