@@ -240,8 +240,30 @@
       <div id="goal-progress-list"></div>
     </div>
     <div class="card">
-      <div class="card-title">資產配置</div>
-      <div class="chart-wrap"><canvas id="chart-allocation"></canvas></div>
+      <div class="card-title">📋 投資建議</div>
+      <div id="advice-display">
+        <!-- 自動檢測 -->
+        <div style="margin-bottom:1rem">
+          <div style="font-size:0.8rem;color:var(--muted);margin-bottom:0.5rem">⚡ 配置狀態</div>
+          <div id="advice-allocation-status" style="font-size:0.9rem;line-height:1.6"></div>
+        </div>
+        <!-- Claude 建議 -->
+        <div id="advice-claude-section" style="display:none;border-top:1px solid var(--border);padding-top:0.75rem">
+          <div style="font-size:0.8rem;color:var(--muted);margin-bottom:0.5rem">🤖 Claude 建議 <span id="advice-date" style="color:var(--accent)"></span></div>
+          <div id="advice-dca" style="font-size:0.9rem;line-height:1.6;margin-bottom:0.5rem"></div>
+          <div id="advice-triggers" style="font-size:0.85rem;color:var(--muted);margin-bottom:0.5rem"></div>
+          <div id="advice-notes" style="font-size:0.85rem;color:var(--warn);font-style:italic"></div>
+        </div>
+        <!-- 無建議時顯示 -->
+        <div id="advice-empty" style="color:var(--muted);font-size:0.85rem;margin-top:0.5rem">
+          尚無 Claude 建議，請至「輸入」頁貼上
+        </div>
+      </div>
+      <!-- 資產配置圓餅圖（縮小） -->
+      <div style="border-top:1px solid var(--border);margin-top:1rem;padding-top:0.75rem">
+        <div style="font-size:0.8rem;color:var(--muted);margin-bottom:0.5rem">資產配置</div>
+        <div class="chart-wrap" style="height:160px"><canvas id="chart-allocation"></canvas></div>
+      </div>
     </div>
   </div>
 
@@ -442,11 +464,19 @@
     </div>
 
     <div class="input-section">
-      <h3>長期池 — 現金（萬）</h3>
+      <h3>長期池 — 現金</h3>
       <div class="input-grid">
         <div class="input-group">
-          <label>現金部位</label>
+          <label>台幣現金（萬）</label>
           <input type="number" id="in-lt-cash" placeholder="5" step="0.1" oninput="updateSums()">
+        </div>
+        <div class="input-group">
+          <label>美元現金（USD）</label>
+          <input type="number" id="in-lt-cash-usd" placeholder="0" step="1" oninput="updateSums()">
+          <div style="margin-top:0.3rem;font-size:0.85rem">
+            <span style="color:var(--muted)">→</span>
+            <span id="sum-cash-usd-twd" style="color:var(--accent)">0 萬台幣</span>
+          </div>
         </div>
       </div>
       <div style="margin-top:1rem;padding:1rem;background:var(--card2);border-radius:8px;display:flex;justify-content:space-between;align-items:center">
@@ -459,6 +489,19 @@
       <button class="btn btn-primary" onclick="saveSnapshot()">儲存本次資料</button>
       <button class="btn btn-secondary" onclick="loadLatestToForm()">載入最新資料</button>
       <span class="save-msg" id="save-msg"></span>
+    </div>
+
+    <!-- Claude 建議貼上區 -->
+    <div class="input-section" style="margin-top:1.5rem;border-top:1px solid var(--border);padding-top:1.5rem">
+      <h3>📋 Claude 建議</h3>
+      <p style="font-size:0.85rem;color:var(--muted);margin-bottom:0.75rem">問 Claude 分析後，貼上 JSON 建議</p>
+      <textarea id="advice-input" rows="4" style="width:100%;padding:0.75rem;border-radius:8px;border:1px solid var(--border);background:var(--card2);color:var(--text);font-family:monospace;font-size:0.85rem;resize:vertical" placeholder='{"date":"2026-04-17","dca":{"006208":0,"VTI":2},...}'></textarea>
+      <div style="margin-top:0.75rem;display:flex;gap:0.5rem;align-items:center">
+        <button class="btn btn-primary" onclick="applyAdvice()">套用建議</button>
+        <button class="btn btn-secondary" onclick="clearAdvice()">清除</button>
+        <span id="advice-msg" style="font-size:0.85rem"></span>
+      </div>
+      <div id="advice-preview" style="margin-top:1rem;display:none"></div>
     </div>
   </div>
 </div>
@@ -506,14 +549,16 @@
   <div class="grid-2">
     <div class="card">
       <div class="card-title">短中期池逐年明細</div>
-      <table>
-        <thead><tr><th>年</th><th class="num">期初</th><th class="num">投入</th><th class="num">收益</th><th class="num">提領</th><th class="num">期末</th><th>事件</th></tr></thead>
-        <tbody id="tbody-short-forecast"></tbody>
-      </table>
+      <div style="max-height:240px;overflow-y:auto">
+        <table>
+          <thead style="position:sticky;top:0;background:var(--card);z-index:1"><tr><th>年</th><th class="num">期初</th><th class="num">投入</th><th class="num">收益</th><th class="num">提領</th><th class="num">期末</th><th>事件</th></tr></thead>
+          <tbody id="tbody-short-forecast"></tbody>
+        </table>
+      </div>
     </div>
     <div class="card">
       <div class="card-title">長期池逐年明細</div>
-      <div style="max-height:50vh;overflow-y:auto">
+      <div style="max-height:240px;overflow-y:auto">
         <table>
           <thead style="position:sticky;top:0;background:var(--card);z-index:1"><tr><th>年</th><th class="num">期初</th><th class="num">投入</th><th class="num">收益</th><th class="num">提領</th><th class="num">期末</th><th>事件</th></tr></thead>
           <tbody id="tbody-long-forecast"></tbody>
@@ -950,10 +995,16 @@ function calcSnapshot(s) {
     const usSum = Object.entries(s.longPoolUS||{}).filter(([k])=>k!=='total').reduce((a,[,v])=>a+(v||0),0);
     usInTwd = usSum * usd / 10000; // 美元換算成萬台幣
   }
-  const longTotal = twTotal + usInTwd + (s.longCash||0);
+  // 現金 = 台幣現金 + 美元現金換算
+  const cashTwd = s.longCash || 0;
+  const cashUsd = s.longCashUsd || 0;
+  const cashUsdTwd = cashUsd * usd / 10000;
+  const totalCash = cashTwd + cashUsdTwd;
+  
+  const longTotal = twTotal + usInTwd + totalCash;
   const invest = shortTotal + longTotal;
   const total = invest + (s.reserve||0);
-  return { shortTotal, twTotal, usInTwd, longTotal, invest, total };
+  return { shortTotal, twTotal, usInTwd, longTotal, invest, total, cashTwd, cashUsdTwd, totalCash };
 }
 
 // ===== CONCENTRATION CALCULATION =====
@@ -1105,18 +1156,27 @@ function mkAllocationChart() {
 function mkHistoryChart() {
   destroyChart('history');
   const snaps = [...db.snapshots].sort((a,b)=>getDateKey(a).localeCompare(getDateKey(b)));
-  const labels = snaps.map(s=>getDisplayDate(s));
-  const totals = snaps.map(s=>calcSnapshot(s).total);
-  const longs = snaps.map(s=>calcSnapshot(s).longTotal);
-  const shorts = snaps.map(s=>calcSnapshot(s).shortTotal);
+  if (snaps.length === 0) return;
   
-  // Y軸動態調整：資料範圍 ±20%，最小範圍 50 萬
-  const allValues = [...totals, ...longs, ...shorts];
+  const labels = snaps.map(s=>getDisplayDate(s));
+  const calcs = snaps.map(s=>calcSnapshot(s));
+  
+  // 計算 vs 起點的累積變化
+  const baseTotal = calcs[0].total;
+  const baseLong = calcs[0].longTotal;
+  const baseShort = calcs[0].shortTotal;
+  
+  const totalDiffs = calcs.map(c => c.total - baseTotal);
+  const longDiffs = calcs.map(c => c.longTotal - baseLong);
+  const shortDiffs = calcs.map(c => c.shortTotal - baseShort);
+  
+  // Y軸動態調整
+  const allValues = [...totalDiffs, ...longDiffs, ...shortDiffs];
   const minVal = Math.min(...allValues);
   const maxVal = Math.max(...allValues);
-  const range = Math.max(maxVal - minVal, 50); // 最小範圍 50 萬
+  const range = Math.max(maxVal - minVal, 10); // 最小範圍 10 萬
   const padding = range * 0.2;
-  const yMin = Math.max(0, minVal - padding);
+  const yMin = minVal - padding;
   const yMax = maxVal + padding;
   
   const ctx = document.getElementById('chart-history').getContext('2d');
@@ -1126,20 +1186,34 @@ function mkHistoryChart() {
     data: {
       labels,
       datasets: [
-        { label: '總資產', data: totals, borderColor: '#6c8fff', backgroundColor: 'rgba(108,143,255,0.08)', tension: 0.3, fill: true, pointRadius: 5 },
-        { label: '長期池', data: longs, borderColor: '#43e8b0', tension: 0.3, pointRadius: 4 },
-        { label: '短中期池', data: shorts, borderColor: '#ffd166', tension: 0.3, pointRadius: 4 },
+        { label: '總資產', data: totalDiffs, borderColor: '#6c8fff', backgroundColor: 'rgba(108,143,255,0.08)', tension: 0.3, fill: true, pointRadius: 5 },
+        { label: '長期池', data: longDiffs, borderColor: '#43e8b0', tension: 0.3, pointRadius: 4 },
+        { label: '短中期池', data: shortDiffs, borderColor: '#ffd166', tension: 0.3, pointRadius: 4 },
       ]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: tc.legend, font: { size: 11 } } } },
+      plugins: { 
+        legend: { labels: { color: tc.legend, font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const v = ctx.raw;
+              const sign = v >= 0 ? '+' : '';
+              return `${ctx.dataset.label}: ${sign}${v.toFixed(1)} 萬`;
+            }
+          }
+        }
+      },
       scales: {
         x: { ticks: { color: tc.tick }, grid: { color: tc.grid } },
         y: { 
           min: yMin,
           max: yMax,
-          ticks: { color: tc.tick, callback: v => v.toFixed(0) + '萬' }, 
+          ticks: { 
+            color: tc.tick, 
+            callback: v => (v >= 0 ? '+' : '') + v.toFixed(0) + '萬'
+          }, 
           grid: { color: tc.grid } 
         }
       }
@@ -1246,60 +1320,84 @@ function mkForecastCharts() {
 
   // 目前實際值 vs 預測值的分析
   const shortActual = latestCalc.shortTotal;
-  const shortExpected = shortRows[currentYrIndex - 1]?.end || 0;
+  const shortExpected = shortRows[currentYrIndex - 1]?.end || shortRows[0]?.end || 0;
   const shortDiff = shortActual - shortExpected;
   const shortAnalysis = shortDiff >= 0 
     ? `<span style="color:var(--ok)">超前 ${shortDiff.toFixed(1)} 萬 ✓</span>`
     : `<span style="color:var(--danger)">落後 ${Math.abs(shortDiff).toFixed(1)} 萬，需加速</span>`;
     
   const longActual = latestCalc.longTotal;
-  const longExpected = longRows[currentYrIndex - 1]?.end || 0;
+  const longExpected = longRows[currentYrIndex - 1]?.end || longRows[0]?.end || 0;
   const longDiff = longActual - longExpected;
   const longAnalysis = longDiff >= 0 
     ? `<span style="color:var(--ok)">超前 ${longDiff.toFixed(1)} 萬 ✓</span>`
     : `<span style="color:var(--danger)">落後 ${Math.abs(longDiff).toFixed(1)} 萬，需加速</span>`;
 
-  // 表格：標示目前位置
+  // 目前日期
+  const currentDate = getDisplayDate(latest);
+
+  // 表格：目前獨立一列在第1年後
   const tb1 = document.getElementById('tbody-short-forecast');
   const fmtW = v => v > 0 ? `<span style="color:var(--warn)">-${v.toFixed(1)}</span>` : '<span style="color:var(--muted)">—</span>';
-  tb1.innerHTML = shortRows.map(r => {
-    const isCurrent = r.yr === currentYrIndex;
-    const rowStyle = isCurrent ? 'background:var(--card2);border-left:3px solid var(--warn)' : r.yr === 1 ? 'background:var(--card2)' : '';
-    let label = `第${r.yr}年（${startYear + r.yr - 1}）`;
-    if (isCurrent) {
-      label += `<div style="font-size:0.75rem;margin-top:0.2rem;color:var(--warn)">← 目前：${shortActual.toFixed(1)} 萬（預測 ${shortExpected.toFixed(1)} 萬）</div>`;
-      label += `<div style="font-size:0.75rem">${shortAnalysis}</div>`;
-    }
-    return `<tr style="${rowStyle}">
-      <td>${label}</td>
+  
+  let shortHtml = '';
+  shortRows.forEach((r, i) => {
+    const rowStyle = r.yr === 1 ? 'background:var(--card2)' : '';
+    shortHtml += `<tr style="${rowStyle}">
+      <td>第${r.yr}年（${startYear + r.yr - 1}）</td>
       <td class="num">${r.start.toFixed(1)}</td>
       <td class="num">${r.invest > 0 ? r.invest.toFixed(1) : '—'}</td>
       <td class="num">${r.yield > 0 ? r.yield.toFixed(1) : '—'}</td>
       <td class="num">${fmtW(r.withdraw)}</td>
       <td class="num" style="color:${r.end<0?'var(--danger)':'var(--text)'}">${r.end.toFixed(1)}</td>
-      <td style="color:var(--warn);font-size:0.8rem">${r.event}</td>
+      <td style="color:var(--warn);font-size:0.8rem">${r.event || (r.yr===1?'起點':'')}</td>
     </tr>`;
-  }).join('');
+    // 在第1年後插入目前狀態
+    if (r.yr === 1) {
+      shortHtml += `<tr style="background:linear-gradient(90deg, var(--warn) 3px, var(--card2) 3px);border-top:1px solid var(--warn);border-bottom:1px solid var(--warn)">
+        <td colspan="7" style="padding:0.6rem 1rem">
+          <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
+            <span style="font-size:1rem">📍</span>
+            <span style="font-weight:600;color:var(--warn)">目前（${currentDate}）</span>
+            <span>：${shortActual.toFixed(1)} 萬</span>
+            <span style="color:var(--muted)">（預測 ${shortExpected.toFixed(1)} 萬）</span>
+            ${shortAnalysis}
+          </div>
+        </td>
+      </tr>`;
+    }
+  });
+  tb1.innerHTML = shortHtml;
 
   const tb2 = document.getElementById('tbody-long-forecast');
-  tb2.innerHTML = longRows.map(r => {
-    const isCurrent = r.yr === currentYrIndex;
-    const rowStyle = isCurrent ? 'background:var(--card2);border-left:3px solid var(--warn)' : r.yr === 1 ? 'background:var(--card2)' : '';
-    let label = `第${r.yr}年（${startYear + r.yr - 1}）`;
-    if (isCurrent) {
-      label += `<div style="font-size:0.75rem;margin-top:0.2rem;color:var(--warn)">← 目前：${longActual.toFixed(1)} 萬（預測 ${longExpected.toFixed(1)} 萬）</div>`;
-      label += `<div style="font-size:0.75rem">${longAnalysis}</div>`;
-    }
-    return `<tr style="${rowStyle}">
-      <td>${label}</td>
+  let longHtml = '';
+  longRows.forEach((r, i) => {
+    const rowStyle = r.yr === 1 ? 'background:var(--card2)' : '';
+    longHtml += `<tr style="${rowStyle}">
+      <td>第${r.yr}年（${startYear + r.yr - 1}）</td>
       <td class="num">${r.start.toFixed(1)}</td>
       <td class="num">${r.invest > 0 ? r.invest.toFixed(1) : '—'}</td>
       <td class="num">${r.yield > 0 ? r.yield.toFixed(1) : '—'}</td>
       <td class="num">${fmtW(r.withdraw)}</td>
       <td class="num">${r.end.toFixed(1)}</td>
-      <td style="color:var(--warn);font-size:0.8rem">${r.event}</td>
+      <td style="color:var(--warn);font-size:0.8rem">${r.event || (r.yr===1?'起點':'')}</td>
     </tr>`;
-  }).join('');
+    // 在第1年後插入目前狀態
+    if (r.yr === 1) {
+      longHtml += `<tr style="background:linear-gradient(90deg, var(--warn) 3px, var(--card2) 3px);border-top:1px solid var(--warn);border-bottom:1px solid var(--warn)">
+        <td colspan="7" style="padding:0.6rem 1rem">
+          <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
+            <span style="font-size:1rem">📍</span>
+            <span style="font-weight:600;color:var(--warn)">目前（${currentDate}）</span>
+            <span>：${longActual.toFixed(1)} 萬</span>
+            <span style="color:var(--muted)">（預測 ${longExpected.toFixed(1)} 萬）</span>
+            ${longAnalysis}
+          </div>
+        </td>
+      </tr>`;
+    }
+  });
+  tb2.innerHTML = longHtml;
 }
 
 // ===== RENDER OVERVIEW =====
@@ -1414,6 +1512,9 @@ function renderConcentrationAlerts(snap) {
       <div class="alert-items">${a.text}</div>
     </div>
   `).join('');
+  
+  // 渲染建議模組
+  renderAdvice();
 }
 
 function renderHoldingTables(latest) {
@@ -1688,10 +1789,16 @@ function saveSnapshot() {
   const date = getInputDate();
   if (!date) { alert('請選擇或輸入日期'); return; }
   
+  // 匯率
+  const usdtwd = +document.getElementById('in-usdtwd').value || 32;
+  
   // 美股合計：手動輸入美元，換算成萬台幣
   const usUsd = +document.getElementById('in-lt-us-usd').value || 0;
-  const usdtwd = +document.getElementById('in-usdtwd').value || 32;
   const usTwd = usUsd * usdtwd / 10000;
+  
+  // 美元現金
+  const cashUsd = +document.getElementById('in-lt-cash-usd').value || 0;
+  const cashUsdTwd = cashUsd * usdtwd / 10000;
   
   const snap = {
     date,
@@ -1725,6 +1832,8 @@ function saveSnapshot() {
       vwo: +document.getElementById('in-us-vwo').value || 0,
     },
     longCash: +document.getElementById('in-lt-cash').value || 0,
+    longCashUsd: cashUsd, // 美元現金
+    longCashUsdTwd: cashUsdTwd, // 美元現金換算台幣
     usdtwd: usdtwd,
   };
   
@@ -1769,6 +1878,7 @@ function loadLatestToForm() {
   document.getElementById('in-us-nvda').value = s.longPoolUS?.nvda||'';
   document.getElementById('in-us-vwo').value = s.longPoolUS?.vwo||'';
   document.getElementById('in-lt-cash').value = s.longCash||'';
+  document.getElementById('in-lt-cash-usd').value = s.longCashUsd||'';
   document.getElementById('in-usdtwd').value = usdtwd;
   updateSums(); // 更新合計
 }
@@ -1882,16 +1992,24 @@ function updateSums() {
     (+document.getElementById('in-st-deposit').value || 0);
   document.getElementById('sum-short').textContent = `合計: ${shortSum.toFixed(1)} 萬`;
   
+  // 匯率
+  const usdtwd = +document.getElementById('in-usdtwd').value || 32;
+  
   // 美股合計（手動輸入美元）換算成萬台幣
   const usUsd = +document.getElementById('in-lt-us-usd').value || 0;
-  const usdtwd = +document.getElementById('in-usdtwd').value || 32;
   const usTwd = usUsd * usdtwd / 10000; // 萬台幣
   document.getElementById('sum-us-twd').textContent = `${usTwd.toFixed(1)} 萬台幣`;
   
-  // 長期池總計
+  // 美元現金換算成萬台幣
+  const cashUsd = +document.getElementById('in-lt-cash-usd').value || 0;
+  const cashUsdTwd = cashUsd * usdtwd / 10000;
+  document.getElementById('sum-cash-usd-twd').textContent = `${cashUsdTwd.toFixed(2)} 萬台幣`;
+  
+  // 長期池總計（台幣現金 + 美元現金換算）
   const twTotal = +document.getElementById('in-lt-tw-total').value || 0;
-  const cash = +document.getElementById('in-lt-cash').value || 0;
-  const longTotal = twTotal + usTwd + cash;
+  const cashTwd = +document.getElementById('in-lt-cash').value || 0;
+  const totalCash = cashTwd + cashUsdTwd;
+  const longTotal = twTotal + usTwd + totalCash;
   document.getElementById('sum-long-total').textContent = `${longTotal.toFixed(1)} 萬`;
 }
 
@@ -1929,6 +2047,111 @@ function loadTheme() {
   if (saved === 'light') {
     document.body.classList.add('light');
     document.getElementById('theme-label').textContent = '☀️';
+  }
+}
+
+// ===== ADVICE MODULE =====
+function applyAdvice() {
+  const input = document.getElementById('advice-input').value.trim();
+  if (!input) {
+    showAdviceMsg('請貼上 JSON 建議', 'var(--danger)');
+    return;
+  }
+  try {
+    const advice = JSON.parse(input);
+    db.advice = advice;
+    markUnsaved();
+    renderAdvice();
+    showAdviceMsg('✓ 建議已套用', 'var(--ok)');
+    document.getElementById('advice-input').value = '';
+  } catch(e) {
+    showAdviceMsg('JSON 格式錯誤：' + e.message, 'var(--danger)');
+  }
+}
+
+function clearAdvice() {
+  document.getElementById('advice-input').value = '';
+  showAdviceMsg('', '');
+}
+
+function showAdviceMsg(msg, color) {
+  const el = document.getElementById('advice-msg');
+  el.textContent = msg;
+  el.style.color = color;
+}
+
+function renderAdvice() {
+  // 1. 自動配置狀態（根據數據計算）
+  const snaps = [...db.snapshots].sort((a,b)=>getDateKey(a).localeCompare(getDateKey(b)));
+  const latest = snaps[snaps.length - 1];
+  if (!latest) return;
+  
+  const c = calcSnapshot(latest);
+  const longTotal = c.longTotal;
+  const twPct = longTotal > 0 ? (c.twTotal / longTotal * 100) : 0;
+  const usPct = longTotal > 0 ? (c.usInTwd / longTotal * 100) : 0;
+  const cashPct = longTotal > 0 ? (c.totalCash / longTotal * 100) : 0;
+  
+  // 目標範圍
+  const twTarget = [60, 70];
+  const usTarget = [30, 35];
+  const cashTarget = [5, 8];
+  
+  const statusHtml = (label, pct, target, amount) => {
+    let status = '', color = 'var(--ok)';
+    if (pct > target[1]) { status = '偏高'; color = 'var(--warn)'; }
+    else if (pct < target[0]) { status = '偏低'; color = 'var(--accent)'; }
+    else { status = '✓'; }
+    const gap = pct < target[0] ? (target[0] / 100 * longTotal - amount).toFixed(0) : '';
+    return `<div style="display:flex;justify-content:space-between;align-items:center">
+      <span>${label} <span style="color:${color};font-weight:600">${pct.toFixed(1)}%</span></span>
+      <span style="color:${color};font-size:0.85rem">${status}${gap ? ' 缺' + gap + '萬' : ''}</span>
+    </div>`;
+  };
+  
+  document.getElementById('advice-allocation-status').innerHTML = 
+    statusHtml('台股', twPct, twTarget, c.twTotal) +
+    statusHtml('美股', usPct, usTarget, c.usInTwd) +
+    statusHtml('現金', cashPct, cashTarget, c.totalCash);
+  
+  // 2. Claude 建議（從 db.advice）
+  const advice = db.advice;
+  const claudeSection = document.getElementById('advice-claude-section');
+  const emptySection = document.getElementById('advice-empty');
+  
+  if (advice && advice.date) {
+    claudeSection.style.display = 'block';
+    emptySection.style.display = 'none';
+    
+    document.getElementById('advice-date').textContent = advice.date;
+    
+    // DCA 建議
+    if (advice.dca) {
+      const dcaHtml = Object.entries(advice.dca).map(([k, v]) => {
+        const amt = typeof v === 'object' ? v.amount : v;
+        const note = typeof v === 'object' ? v.note : '';
+        const amtStr = amt === 0 ? '<span style="color:var(--muted)">暫停</span>' : `<span style="color:var(--ok)">+${amt}萬</span>`;
+        return `<div style="display:flex;justify-content:space-between"><span>${k}</span><span>${amtStr} ${note ? '<span style="color:var(--muted);font-size:0.8rem">(' + note + ')</span>' : ''}</span></div>`;
+      }).join('');
+      document.getElementById('advice-dca').innerHTML = dcaHtml;
+    }
+    
+    // 觸發點
+    if (advice.triggers) {
+      const trigHtml = Object.entries(advice.triggers).map(([k, v]) => {
+        const status = v.status === '未觸發' ? '<span style="color:var(--muted)">未觸發</span>' : '<span style="color:var(--danger)">已觸發！</span>';
+        return `${k}: ${v.level?.toLocaleString() || ''} ${status}`;
+      }).join(' ｜ ');
+      document.getElementById('advice-triggers').innerHTML = trigHtml;
+    } else {
+      document.getElementById('advice-triggers').innerHTML = '';
+    }
+    
+    // 備註
+    document.getElementById('advice-notes').textContent = advice.notes || '';
+  } else {
+    claudeSection.style.display = 'none';
+    emptySection.style.display = 'block';
   }
 }
 
