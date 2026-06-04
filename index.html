@@ -654,7 +654,7 @@
       <div class="card-title">短中期池逐年明細</div>
       <div style="max-height:320px;overflow-y:auto">
         <table>
-          <thead style="position:sticky;top:0;background:var(--card);z-index:1"><tr><th>年</th><th class="num">期初</th><th class="num">投入</th><th class="num">收益</th><th class="num">提領</th><th class="num">期末</th><th>事件</th></tr></thead>
+          <thead style="position:sticky;top:0;background:var(--card);z-index:1"><tr><th>年</th><th class="num">期初</th><th class="num">投入</th><th class="num">收益</th><th class="num">提領</th><th class="num">期末</th><th class="num">vs計畫</th><th>事件</th></tr></thead>
           <tbody id="tbody-short-forecast"></tbody>
         </table>
       </div>
@@ -663,7 +663,7 @@
       <div class="card-title">長期池逐年明細</div>
       <div style="max-height:320px;overflow-y:auto">
         <table>
-          <thead style="position:sticky;top:0;background:var(--card);z-index:1"><tr><th>年</th><th class="num">期初</th><th class="num">投入</th><th class="num">收益</th><th class="num">提領</th><th class="num">期末</th><th>事件</th></tr></thead>
+          <thead style="position:sticky;top:0;background:var(--card);z-index:1"><tr><th>年</th><th class="num">期初</th><th class="num">投入</th><th class="num">收益</th><th class="num">提領</th><th class="num">期末</th><th class="num">vs計畫</th><th>事件</th></tr></thead>
           <tbody id="tbody-long-forecast"></tbody>
         </table>
       </div>
@@ -1277,48 +1277,47 @@ function calcPortfolioActions(s) {
 }
 
 // ===== FORECAST =====
-function calcShortForecast(startAmount, settings) {
-  const rows = [];
-  let val = startAmount;
+// 雙軌:第1年期初=firstVal(第一筆快照)、期末=currentVal(目前實際);第2年起從目前實際推估。
+// 同時推「原計畫」線(從 firstVal、用假設報酬一路推),每列附 planEnd 與 vsPlan(實際−計畫)。
+function calcShortForecast(firstVal, currentVal, settings) {
   const monthlyIn = settings.monthlyShort * 12;
   const rate = settings.rateShort;
   const goals = settings.goals;
-  // 第1年 = 今年（起點），第2年開始才有投入
-  rows.push({ yr: 1, start: val, invest: 0, yield: 0, withdraw: 0, beforeWithdraw: val, end: val, event: '起點' });
+  const rows = [];
+  rows.push({ yr: 1, start: firstVal, invest: 0, yield: 0, withdraw: 0, beforeWithdraw: currentVal, end: currentVal, planEnd: firstVal, vsPlan: currentVal - firstVal, event: '起點→目前(實際)' });
+  let planVal = firstVal, actVal = currentVal;
   for (let y = 2; y <= 11; y++) {
-    const start = val;
-    const invest = monthlyIn;
-    const income = (start + invest) * rate;
     let withdraw = 0, event = '';
-    // 目標年數 +1（因為第1年是起點）
     if (y === goals.baby.years + 1) { withdraw = goals.baby.amount; event = '小孩出生'; }
     if (y === goals.house.years + 1) { withdraw = goals.house.amount; event = '換房'; }
-    const beforeWithdraw = start + invest + income;
-    val = beforeWithdraw - withdraw;
-    rows.push({ yr: y, start, invest, yield: income, withdraw, beforeWithdraw, end: val, event });
+    const planBefore = planVal + monthlyIn + (planVal + monthlyIn) * rate; planVal = planBefore - withdraw;
+    const start = actVal;
+    const income = (start + monthlyIn) * rate;
+    const beforeWithdraw = start + monthlyIn + income;
+    actVal = beforeWithdraw - withdraw;
+    rows.push({ yr: y, start, invest: monthlyIn, yield: income, withdraw, beforeWithdraw, end: actVal, planEnd: planVal, vsPlan: actVal - planVal, event });
   }
   return rows;
 }
 
-function calcLongForecast(startAmount, settings) {
-  const rows = [];
-  let val = startAmount;
+function calcLongForecast(firstVal, currentVal, settings) {
   const rate = settings.rateLong;
   const goals = settings.goals;
   const monthlyAfter10 = settings.monthlyLong + settings.monthlyShort;
-  // 第1年 = 今年（起點），第2年開始才有投入
-  rows.push({ yr: 1, start: val, invest: 0, yield: 0, withdraw: 0, beforeWithdraw: val, end: val, event: '起點' });
+  const rows = [];
+  rows.push({ yr: 1, start: firstVal, invest: 0, yield: 0, withdraw: 0, beforeWithdraw: currentVal, end: currentVal, planEnd: firstVal, vsPlan: currentVal - firstVal, event: '起點→目前(實際)' });
+  let planVal = firstVal, actVal = currentVal;
   for (let y = 2; y <= 31; y++) {
-    const start = val;
-    // 第11年之後（原本的第10年之後），短中期池投入也轉入
-    const invest = (y <= 11 ? settings.monthlyLong : monthlyAfter10) * 12;
-    const income = (start + invest) * rate;
+    const monthlyIn = (y <= 11 ? settings.monthlyLong : monthlyAfter10) * 12; // 第11年後短中期池投入轉入
     let withdraw = 0, event = '';
     if (y === goals.study.years + 1) { withdraw = goals.study.amount; event = '留學'; }
     if (y === 31) { event = '退休（剩餘）'; }
-    const beforeWithdraw = start + invest + income;
-    val = beforeWithdraw - withdraw;
-    rows.push({ yr: y, start, invest, yield: income, withdraw, beforeWithdraw, end: val, event });
+    const planBefore = planVal + monthlyIn + (planVal + monthlyIn) * rate; planVal = planBefore - withdraw;
+    const start = actVal;
+    const income = (start + monthlyIn) * rate;
+    const beforeWithdraw = start + monthlyIn + income;
+    actVal = beforeWithdraw - withdraw;
+    rows.push({ yr: y, start, invest: monthlyIn, yield: income, withdraw, beforeWithdraw, end: actVal, planEnd: planVal, vsPlan: actVal - planVal, event });
   }
   return rows;
 }
@@ -1494,44 +1493,34 @@ function mkForecastCharts() {
   const snaps = [...db.snapshots].sort((a,b)=>getDateKey(a).localeCompare(getDateKey(b)));
   if (!snaps.length) return;
   
-  // 起點：最新一筆資料(向前預測,與總覽目標進度一致 — 修正先前兩頁起點不一致的 bug)
+  // 第1年期初=第一筆快照、期末=目前實際;第2年起從目前推估。另畫「原計畫(從起點)」對照線。
+  const first = snaps[0];
+  const firstCalc = calcSnapshot(first);
   const latest = snaps[snaps.length - 1];
   const latestCalc = calcSnapshot(latest);
-  const shortRows = calcShortForecast(latestCalc.shortTotal, db.settings);
-  const longRows = calcLongForecast(latestCalc.longTotal, db.settings);
-  const startYear = getYear(latest);
-  const currentYrIndex = 1; // 起點即現在
+  const shortRows = calcShortForecast(firstCalc.shortTotal, latestCalc.shortTotal, db.settings);
+  const longRows = calcLongForecast(firstCalc.longTotal, latestCalc.longTotal, db.settings);
+  const startYear = getYear(first);
+  const currentYrIndex = 1;
   
   destroyChart('short-forecast');
   const ctx1 = document.getElementById('chart-short-forecast').getContext('2d');
   const tc = themeColors();
   
-  // 短期池圖表：標示目前位置
-  const shortBgColors = shortRows.map((r, i) => {
-    if (r.yr === currentYrIndex) return 'rgba(255,215,102,0.9)'; // 目前位置用黃色
-    return r.end < 0 ? 'rgba(255,107,138,0.7)' : 'rgba(108,143,255,0.7)';
-  });
-  
   charts['short-forecast'] = new Chart(ctx1, {
-    type: 'bar',
+    type: 'line',
     data: {
       labels: shortRows.map(r => startYear + r.yr - 1),
       datasets: [
-        { label: '預測', data: shortRows.map(r=>+r.end.toFixed(1)), backgroundColor: shortBgColors, borderWidth: 0 },
+        { label: '實際+推估', data: shortRows.map(r=>+r.end.toFixed(1)), borderColor: '#6c8fff', backgroundColor: 'rgba(108,143,255,0.08)', tension: 0.3, fill: true, pointRadius: 2 },
+        { label: `原計畫(從${startYear})`, data: shortRows.map(r=>+r.planEnd.toFixed(1)), borderColor: tc.tick, borderDash: [5,4], tension: 0.3, fill: false, pointRadius: 0 },
       ]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { 
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            title: (items) => {
-              const yr = shortRows[items[0].dataIndex].yr;
-              return yr === currentYrIndex ? `第${yr}年（目前）` : `第${yr}年`;
-            }
-          }
-        }
+      plugins: {
+        legend: { labels: { color: tc.legend, font: { size: 10 } } },
+        tooltip: { callbacks: { afterBody: (items) => { const r = shortRows[items[0].dataIndex]; const d = r.end - r.planEnd; return `vs計畫 ${d>=0?'+':''}${d.toFixed(0)} 萬`; } } }
       },
       scales: {
         x: { ticks: { color: tc.tick, font:{size:10} }, grid: { color: tc.grid } },
@@ -1543,35 +1532,21 @@ function mkForecastCharts() {
   destroyChart('long-forecast');
   const ctx2 = document.getElementById('chart-long-forecast').getContext('2d');
   
-  // 長期池圖表：加上目前實際位置的點
-  const longDatasets = [
-    { label: '預測', data: longRows.map(r=>+r.end.toFixed(1)), borderColor: '#43e8b0', backgroundColor: 'rgba(67,232,176,0.08)', tension: 0.3, fill: true, pointRadius: 3 }
-  ];
-  
-  // 如果目前在預測範圍內，加一個實際值的點
-  if (currentYrIndex >= 1 && currentYrIndex <= 31) {
-    const actualData = new Array(longRows.length).fill(null);
-    actualData[currentYrIndex - 1] = latestCalc.longTotal;
-    longDatasets.push({
-      label: '目前實際',
-      data: actualData,
-      borderColor: '#ffd166',
-      backgroundColor: '#ffd166',
-      pointRadius: 8,
-      pointStyle: 'circle',
-      showLine: false
-    });
-  }
-  
   charts['long-forecast'] = new Chart(ctx2, {
     type: 'line',
     data: {
       labels: longRows.map(r => startYear + r.yr - 1),
-      datasets: longDatasets
+      datasets: [
+        { label: '實際+推估', data: longRows.map(r=>+r.end.toFixed(1)), borderColor: '#43e8b0', backgroundColor: 'rgba(67,232,176,0.08)', tension: 0.3, fill: true, pointRadius: 2 },
+        { label: `原計畫(從${startYear})`, data: longRows.map(r=>+r.planEnd.toFixed(1)), borderColor: tc.tick, borderDash: [5,4], tension: 0.3, fill: false, pointRadius: 0 },
+      ]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: tc.legend, font: { size: 10 } } } },
+      plugins: {
+        legend: { labels: { color: tc.legend, font: { size: 10 } } },
+        tooltip: { callbacks: { afterBody: (items) => { const r = longRows[items[0].dataIndex]; const d = r.end - r.planEnd; return `vs計畫 ${d>=0?'+':''}${d.toFixed(0)} 萬`; } } }
+      },
       scales: {
         x: { ticks: { color: tc.tick, font:{size:10} }, grid: { color: tc.grid } },
         y: { ticks: { color: tc.tick, callback: v => v + '萬' }, grid: { color: tc.grid } }
@@ -1605,64 +1580,11 @@ function mkForecastCharts() {
   const tb1 = document.getElementById('tbody-short-forecast');
   const fmtW = v => v > 0 ? `<span style="color:var(--warn)">-${v.toFixed(1)}</span>` : '<span style="color:var(--muted)">—</span>';
   
-  let shortHtml = '';
-  shortRows.forEach((r, i) => {
-    const rowStyle = r.yr === 1 ? 'background:var(--card2)' : '';
-    shortHtml += `<tr style="${rowStyle}">
-      <td>第${r.yr}年（${startYear + r.yr - 1}）</td>
-      <td class="num">${r.start.toFixed(1)}</td>
-      <td class="num">${r.invest > 0 ? r.invest.toFixed(1) : '—'}</td>
-      <td class="num">${r.yield > 0 ? r.yield.toFixed(1) : '—'}</td>
-      <td class="num">${fmtW(r.withdraw)}</td>
-      <td class="num" style="color:${r.end<0?'var(--danger)':'var(--text)'}">${r.end.toFixed(1)}</td>
-      <td style="color:var(--warn);font-size:0.8rem">${r.event || (r.yr===1?'起點':'')}</td>
-    </tr>`;
-    // 在第1年後插入目前狀態
-    if (r.yr === 1) {
-      shortHtml += `<tr style="background:linear-gradient(90deg, var(--warn) 3px, var(--card2) 3px);border-top:1px solid var(--warn);border-bottom:1px solid var(--warn)">
-        <td colspan="7" style="padding:0.6rem 1rem">
-          <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
-            <span style="font-size:1rem">📍</span>
-            <span style="font-weight:600;color:var(--warn)">目前（${currentDate}）</span>
-            <span>：${shortActual.toFixed(1)} 萬</span>
-            <span style="color:var(--muted)">（預測 ${shortExpected.toFixed(1)} 萬）</span>
-            ${shortAnalysis}
-          </div>
-        </td>
-      </tr>`;
-    }
-  });
-  tb1.innerHTML = shortHtml;
+  const vsCol = v => v>=0 ? `<span style="color:var(--ok)">+${v.toFixed(0)}</span>` : `<span style="color:var(--danger)">${v.toFixed(0)}</span>`;
+  const fcRow = (r) => `<tr style="${r.yr===1?'background:var(--card2)':''}"><td>第${r.yr}年（${startYear + r.yr - 1}）</td><td class="num">${r.start.toFixed(1)}</td><td class="num">${r.invest > 0 ? r.invest.toFixed(1) : (r.yr===1?'實際':'—')}</td><td class="num">${r.yield > 0 ? r.yield.toFixed(1) : (r.yr===1?'實際':'—')}</td><td class="num">${fmtW(r.withdraw)}</td><td class="num" style="color:${r.end<0?'var(--danger)':'var(--text)'}">${r.end.toFixed(1)}</td><td class="num">${vsCol(r.vsPlan)}</td><td style="color:var(--warn);font-size:0.8rem">${r.event||''}</td></tr>`;
+  tb1.innerHTML = shortRows.map(fcRow).join('');
 
-  const tb2 = document.getElementById('tbody-long-forecast');
-  let longHtml = '';
-  longRows.forEach((r, i) => {
-    const rowStyle = r.yr === 1 ? 'background:var(--card2)' : '';
-    longHtml += `<tr style="${rowStyle}">
-      <td>第${r.yr}年（${startYear + r.yr - 1}）</td>
-      <td class="num">${r.start.toFixed(1)}</td>
-      <td class="num">${r.invest > 0 ? r.invest.toFixed(1) : '—'}</td>
-      <td class="num">${r.yield > 0 ? r.yield.toFixed(1) : '—'}</td>
-      <td class="num">${fmtW(r.withdraw)}</td>
-      <td class="num">${r.end.toFixed(1)}</td>
-      <td style="color:var(--warn);font-size:0.8rem">${r.event || (r.yr===1?'起點':'')}</td>
-    </tr>`;
-    // 在第1年後插入目前狀態
-    if (r.yr === 1) {
-      longHtml += `<tr style="background:linear-gradient(90deg, var(--warn) 3px, var(--card2) 3px);border-top:1px solid var(--warn);border-bottom:1px solid var(--warn)">
-        <td colspan="7" style="padding:0.6rem 1rem">
-          <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
-            <span style="font-size:1rem">📍</span>
-            <span style="font-weight:600;color:var(--warn)">目前（${currentDate}）</span>
-            <span>：${longActual.toFixed(1)} 萬</span>
-            <span style="color:var(--muted)">（預測 ${longExpected.toFixed(1)} 萬）</span>
-            ${longAnalysis}
-          </div>
-        </td>
-      </tr>`;
-    }
-  });
-  tb2.innerHTML = longHtml;
+  document.getElementById('tbody-long-forecast').innerHTML = longRows.map(fcRow).join('');
 }
 
 // ===== RENDER OVERVIEW =====
@@ -1694,10 +1616,11 @@ function renderOverview() {
   // Concentration Alerts
   renderConcentrationAlerts(latest);
 
-  // Goals
+  // Goals(用雙軌預測的「實際+推估」線評估達標 — beforeWithdraw 即實際線)
   const s = db.settings;
-  const shortRows = calcShortForecast(c.shortTotal, s);
-  const longRows = calcLongForecast(c.longTotal, s);
+  const cFirst = calcSnapshot(snaps[0]);
+  const shortRows = calcShortForecast(cFirst.shortTotal, c.shortTotal, s);
+  const longRows = calcLongForecast(cFirst.longTotal, c.longTotal, s);
   // 目標年數 +1 來取得正確的 row（因為第1年是起點）
   const goalBabyForecast = shortRows.find(r => r.yr === s.goals.baby.years + 1)?.beforeWithdraw || 0;
   const goalHouseForecast = shortRows.find(r => r.yr === s.goals.house.years + 1)?.beforeWithdraw || 0;
