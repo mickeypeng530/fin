@@ -160,6 +160,26 @@
   .fetch-status { font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px; background: var(--card2); color: var(--muted); white-space: nowrap; margin-top: 1.6rem; }
   .fetch-status.ok { background: rgba(67,232,176,0.15); color: var(--ok); }
   .fetch-status.err { background: rgba(255,107,138,0.15); color: var(--danger); }
+
+  /* STOCK RESEARCH NOTE (個股研究筆記) */
+  .stock-note-head { cursor: pointer; }
+  .stock-note-arrow { font-size: 0.7rem; color: var(--muted); }
+  .tier-badge { font-size: 0.62rem; padding: 0.05rem 0.3rem; border-radius: 3px; font-weight: 600; }
+  .tier-1 { background: rgba(67,232,176,0.18); color: var(--ok); }
+  .tier-2 { background: rgba(108,143,255,0.18); color: var(--accent); }
+  .tier-3 { background: rgba(139,145,181,0.2); color: var(--muted); }
+  .theme-chip { display: inline-block; font-size: 0.72rem; padding: 0.1rem 0.5rem; border-radius: 12px; background: var(--card); border: 1px solid var(--border); color: var(--accent); cursor: pointer; margin: 0.15rem 0.2rem 0 0; }
+  .theme-chip:hover { border-color: var(--accent); }
+  .note-section { margin-top: 0.55rem; font-size: 0.84rem; line-height: 1.5; }
+  .note-label { font-size: 0.7rem; color: var(--muted); letter-spacing: 0.5px; margin-bottom: 0.2rem; }
+  .note-kill { background: rgba(255,107,138,0.08); border-left: 3px solid var(--danger); padding: 0.4rem 0.6rem; border-radius: 4px; }
+  .note-table { width: 100%; font-size: 0.8rem; }
+  .note-table td, .note-table th { padding: 0.25rem 0.4rem; }
+  .stale { opacity: 0.45; }
+  .conv-high { background: rgba(67,232,176,0.15); color: var(--ok); }
+  .conv-med { background: rgba(255,209,102,0.15); color: var(--warn); }
+  .conv-low { background: rgba(139,145,181,0.2); color: var(--muted); }
+  .card.highlight-theme { outline: 2px solid var(--accent); outline-offset: 1px; }
 </style>
 </head>
 <body>
@@ -169,6 +189,7 @@
   <div class="nav-tabs">
     <button class="nav-tab active" onclick="showPage('overview',this)">總覽</button>
     <button class="nav-tab" onclick="showPage('stock',this)">個股分析</button>
+    <button class="nav-tab" onclick="showPage('macro',this)">總經/主題</button>
     <button class="nav-tab" onclick="showPage('input',this)">輸入</button>
     <button class="nav-tab" onclick="showPage('history',this)">歷史</button>
     <button class="nav-tab" onclick="showPage('forecast',this)">預測</button>
@@ -325,6 +346,28 @@
       <button class="btn btn-primary" onclick="applyStockAnalysis()">套用</button>
       <button class="btn btn-secondary" onclick="document.getElementById('stock-analysis-input').value=''">清除</button>
       <span id="stock-analysis-msg" style="font-size:0.85rem"></span>
+    </div>
+  </div>
+</div>
+
+<!-- MACRO / THEMES PAGE -->
+<div class="page" id="page-macro">
+  <div class="card" style="margin-bottom:1rem">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem">
+      <div class="card-title" style="margin-bottom:0">總經 / 主題頻道</div>
+      <div id="macro-meta" style="font-size:0.78rem;color:var(--muted)"></div>
+    </div>
+    <div style="font-size:0.72rem;color:var(--muted);margin-top:0.4rem">點頻道標題展開指標/事件/行事曆。指標數字以官方一手源(T1)為主，過期自動降級。</div>
+  </div>
+  <div id="macro-channels"></div>
+  <div class="card">
+    <div class="card-title">📋 更新總經/主題（貼上 JSON）</div>
+    <p style="font-size:0.82rem;color:var(--muted);margin-bottom:0.5rem">貼上 channels JSON 更新此頁（會與現有頻道合併）</p>
+    <textarea id="macro-input" rows="4" style="width:100%;padding:0.75rem;border-radius:8px;border:1px solid var(--border);background:var(--card2);color:var(--text);font-family:monospace;font-size:0.82rem;resize:vertical" placeholder='{"date":"2026-06-04","items":{"rates":{"title":"...","regime":"...","indicators":[...]}}}'></textarea>
+    <div style="margin-top:0.5rem;display:flex;gap:0.5rem;align-items:center">
+      <button class="btn btn-primary" onclick="applyMacro()">套用</button>
+      <button class="btn btn-secondary" onclick="document.getElementById('macro-input').value=''">清除</button>
+      <span id="macro-msg" style="font-size:0.85rem"></span>
     </div>
   </div>
 </div>
@@ -795,7 +838,7 @@ const DEFAULT_COST_BASIS = {
 const DEFAULT_STOCK_ANALYSIS = { date: '', source: '', stocks: {} };
 
 // ===== DATA LAYER =====
-let db = { settings: { ...DEFAULT_SETTINGS }, snapshots: [], costBasis: { ...DEFAULT_COST_BASIS }, prices: {}, advice: null, stockAnalysis: { ...DEFAULT_STOCK_ANALYSIS } };
+let db = { settings: { ...DEFAULT_SETTINGS }, snapshots: [], costBasis: { ...DEFAULT_COST_BASIS }, prices: {}, advice: null, stockAnalysis: { ...DEFAULT_STOCK_ANALYSIS }, channels: { date: '', source: '', items: {} } };
 let hasUnsaved = false;
 let cachedPrices = {}; // { symbol: { price, timestamp } }
 
@@ -825,6 +868,7 @@ function loadFile(event) {
         prices: loaded.prices || {},
         advice: loaded.advice || null,
         stockAnalysis: loaded.stockAnalysis || { ...DEFAULT_STOCK_ANALYSIS },
+        channels: loaded.channels || { date: '', source: '', items: {} },
       };
       saveToLocalStorage(); // 自動存到 localStorage
       enterApp();
@@ -859,6 +903,7 @@ function loadFromLocalStorage() {
         prices: loaded.prices || {},
         advice: loaded.advice || null,
         stockAnalysis: loaded.stockAnalysis || { ...DEFAULT_STOCK_ANALYSIS },
+        channels: loaded.channels || { date: '', source: '', items: {} },
       };
       return true;
     }
@@ -876,6 +921,7 @@ function startNew() {
     prices: {},
     advice: null,
     stockAnalysis: { ...DEFAULT_STOCK_ANALYSIS },
+    channels: { date: '', source: '', items: {} },
   };
   saveToLocalStorage(); // 自動存到 localStorage
   enterApp();
@@ -2072,6 +2118,7 @@ function showPage(id, btn) {
   if (btn) btn.classList.add('active');
   if (id==='overview') { renderOverview(); }
   if (id==='stock') { renderStockAnalysis(); }
+  if (id==='macro') { renderMacro(); }
   if (id==='history') { renderHistory(); }
   if (id==='forecast') { mkForecastCharts(); }
   if (id==='settings') { renderSettings(); renderCostBasisGrid(); }
@@ -2206,23 +2253,60 @@ function renderStockAnalysis() {
   document.getElementById('stock-analysis-src').textContent = sa.source || '';
   const stockRows = rows.filter(r => r.isStock);
   const field = (icon, label, txt) => txt ? `<div style="margin-top:0.35rem;font-size:0.85rem"><span style="color:var(--muted)">${icon} ${label}：</span>${txt}</div>` : '';
-  const cards = stockRows.map(r => {
+  const today = new Date();
+  const daysSince = (iso) => { if (!iso) return null; const d = new Date(iso); return isNaN(d) ? null : Math.floor((today - d) / 86400000); };
+  const tierBadge = (t) => t ? `<span class="tier-badge tier-${t}">T${t}</span>` : '';
+  const convBadge = (c) => { if (!c) return ''; const cls = {high:'conv-high',med:'conv-med',low:'conv-low'}[c] || 'conv-med'; const lbl = {high:'高信念',med:'中信念',low:'低信念'}[c] || c; return `<span class="badge ${cls}">${lbl}</span>`; };
+  const reviewBadge = (iso) => { const dd = daysSince(iso); if (dd === null) return ''; return dd > 0 ? `<span class="badge badge-danger">重評逾期 ${dd} 天</span>` : `<span style="font-size:0.72rem;color:var(--muted)">下次重評 ${iso}</span>`; };
+  const renderCard = (r) => {
     const a = (sa.stocks && sa.stocks[r.symbol]) || null;
     const pct = (r.val / invest * 100).toFixed(1);
     const retBadge = r.ret === null ? '' : `<span class="badge ${r.ret>=0?'badge-ok':'badge-danger'}">${r.ret>=0?'+':''}${r.ret.toFixed(1)}%</span>`;
-    const body = a ? (
-      (a.view ? `<div style="font-size:0.88rem;font-weight:600;color:var(--accent);margin-top:0.2rem">${a.view}</div>` : '') +
-      field('📈','近況', a.recent) + field('🔔','催化劑', a.catalyst) + field('⚠️','風險', a.risk)
-    ) : '<div style="font-size:0.85rem;color:var(--muted);margin-top:0.3rem">尚無分析（可於下方貼上 JSON）</div>';
-    return `<div class="card" style="background:var(--card2);margin-bottom:0.75rem;padding:1rem">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:0.5rem;flex-wrap:wrap">
-        <div style="font-weight:700">${r.market==='US'?'<span style="font-size:0.7rem;color:var(--muted)">US </span>':''}${r.symbol} <span style="font-weight:400;color:var(--muted);font-size:0.85rem">${r.name}</span></div>
-        <div style="font-size:0.82rem;color:var(--muted)">權重 ${pct}% ｜ ${r.val.toFixed(1)} 萬 ${retBadge}</div>
+    const isRich = !!(a && (a.thesis_one_liner || a.bull || a.what_would_change_my_mind || a.monitoring_kpis));
+    const oneLiner = a ? (a.thesis_one_liner || a.view || '') : '';
+    const themes = (isRich && Array.isArray(a.theme_tags)) ? a.theme_tags : [];
+    let body;
+    if (!a) {
+      body = '<div style="font-size:0.85rem;color:var(--muted)">尚無分析（可於下方貼上 JSON 更新）</div>';
+    } else if (!isRich) {
+      body = field('📈','近況', a.recent) + field('🔔','催化劑', a.catalyst) + field('⚠️','風險', a.risk);
+    } else {
+      const listSec = (label, arr) => (Array.isArray(arr) && arr.length) ? `<div class="note-section"><div class="note-label">${label}</div><ul style="margin:0 0 0 1.1rem;padding:0">${arr.map(x=>`<li>${x}</li>`).join('')}</ul></div>` : '';
+      const why = a.why_mispriced ? `<div class="note-section"><div class="note-label">市場錯價在哪</div>${a.why_mispriced}</div>` : '';
+      const kill = (Array.isArray(a.what_would_change_my_mind) && a.what_would_change_my_mind.length) ? `<div class="note-section note-kill"><div class="note-label" style="color:var(--danger)">🚫 推翻條件 / 該重評的訊號</div><ul style="margin:0 0 0 1.1rem;padding:0">${a.what_would_change_my_mind.map(x=>`<li>${x}</li>`).join('')}</ul></div>` : '';
+      const val = a.valuation_anchor ? `<div class="note-section"><div class="note-label">估值錨</div>${a.valuation_anchor}</div>` : '';
+      const kpis = (Array.isArray(a.monitoring_kpis) && a.monitoring_kpis.length) ? `<div class="note-section"><div class="note-label">📊 監控 KPI</div><table class="note-table"><thead><tr><th>指標</th><th class="num">最新</th><th class="num">前值</th><th>來源</th></tr></thead><tbody>${a.monitoring_kpis.map(k=>`<tr class="${daysSince(k.as_of)>120?'stale':''}"><td>${k.name}</td><td class="num">${k.latest||'—'}</td><td class="num" style="color:var(--muted)">${k.prev||'—'}</td><td>${tierBadge(k.tier)} <span style="font-size:0.68rem;color:var(--muted)">${k.as_of||''}</span></td></tr>`).join('')}</tbody></table></div>` : '';
+      const cats = (Array.isArray(a.catalysts) && a.catalysts.length) ? `<div class="note-section"><div class="note-label">🔔 催化劑</div>${a.catalysts.map(c=>`<div style="display:flex;justify-content:space-between;gap:0.5rem"><span>${c.event}</span><span style="color:var(--muted);white-space:nowrap">${c.date||''}${c.status?' · '+c.status:''}</span></div>`).join('')}</div>` : '';
+      const news = (Array.isArray(a.recent) && a.recent.length) ? `<div class="note-section"><div class="note-label">📈 近況 / 新聞</div>${a.recent.map(n=>{const st=daysSince(n.as_of)>45;return `<div class="${st?'stale':''}" style="margin-bottom:0.3rem">${tierBadge(n.tier)} ${n.url?`<a href="${n.url}" target="_blank" style="color:var(--accent)">${n.summary}</a>`:n.summary} <span style="font-size:0.68rem;color:var(--muted)">${n.as_of||''}${st?' ⚠️過期':''}</span></div>`;}).join('')}</div>` : '';
+      const chips = themes.length ? `<div class="note-section"><div class="note-label">🔗 主題（點擊高亮同主題持股）</div>${themes.map(t=>`<span class="theme-chip" onclick="event.stopPropagation();highlightStockTheme('${String(t).replace(/'/g,'')}')">${t}</span>`).join('')}</div>` : '';
+      const reviewLine = `<div class="note-section" style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;flex-wrap:wrap;color:var(--muted);font-size:0.74rem"><span>論點上次重評 ${a.thesis_last_reviewed||'—'}</span>${reviewBadge(a.next_review_date)}</div>`;
+      body = why + listSec('🐂 多方必須成立', a.bull) + listSec('🐻 空方必須成立', a.bear) + kill + val + kpis + cats + news + chips + reviewLine;
+    }
+    return `<div class="card stock-note" data-symbol="${r.symbol}" data-themes="${themes.join('|')}" style="background:var(--card2);margin-bottom:0.75rem;padding:0.9rem 1rem">
+      <div class="stock-note-head" onclick="toggleStockNote(this)">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:0.5rem;flex-wrap:wrap">
+          <div style="font-weight:700">${r.symbol} <span style="font-weight:400;color:var(--muted);font-size:0.85rem">${r.name}</span> ${convBadge(isRich?a.conviction:null)}</div>
+          <div style="font-size:0.82rem;color:var(--muted)">${pct}% ｜ ${r.val.toFixed(1)}萬 ${retBadge} <span class="stock-note-arrow">▶</span></div>
+        </div>
+        ${oneLiner ? `<div style="font-size:0.86rem;font-weight:600;color:var(--accent);margin-top:0.25rem">${oneLiner}</div>` : ''}
       </div>
-      ${body}
+      <div class="stock-note-body" style="display:none;margin-top:0.5rem;border-top:1px dashed var(--border);padding-top:0.5rem">${body}</div>
     </div>`;
-  }).join('');
-  document.getElementById('stock-analysis-cards').innerHTML = cards || '<div style="color:var(--muted)">尚無持股</div>';
+  };
+  const colHeader = (txt) => `<div style="font-weight:700;color:var(--text);font-size:0.95rem;border-bottom:1px solid var(--border);padding-bottom:0.4rem;margin-bottom:0.6rem">${txt}</div>`;
+  const twCards = stockRows.filter(r => r.market === 'TW').map(renderCard).join('');
+  const usCards = stockRows.filter(r => r.market === 'US').map(renderCard).join('');
+  document.getElementById('stock-analysis-cards').innerHTML = `
+    <div class="grid-2" style="align-items:start">
+      <div>
+        ${colHeader('🇹🇼 台股')}
+        ${twCards || '<div style="color:var(--muted);font-size:0.85rem">無台股持股</div>'}
+      </div>
+      <div>
+        ${colHeader('🇺🇸 美股')}
+        ${usCards || '<div style="color:var(--muted);font-size:0.85rem">無美股持股</div>'}
+      </div>
+    </div>`;
 }
 
 function applyStockAnalysis() {
@@ -2240,6 +2324,97 @@ function applyStockAnalysis() {
     };
     markUnsaved();
     renderStockAnalysis();
+    el.value = '';
+    msg.textContent = '✓ 已套用（記得儲存檔案）';
+    msg.style.color = 'var(--ok)';
+  } catch (e) {
+    msg.textContent = 'JSON 格式錯誤：' + e.message;
+    msg.style.color = 'var(--danger)';
+  }
+}
+
+function toggleStockNote(headEl) {
+  const card = headEl.closest('.stock-note');
+  const body = card?.querySelector('.stock-note-body');
+  const arrow = headEl.querySelector('.stock-note-arrow');
+  if (!body) return;
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : '';
+  if (arrow) arrow.textContent = isOpen ? '▶' : '▼';
+}
+
+let _activeStockTheme = null;
+function highlightStockTheme(theme) {
+  const clear = _activeStockTheme === theme;
+  _activeStockTheme = clear ? null : theme;
+  document.querySelectorAll('#stock-analysis-cards .stock-note').forEach(c => {
+    const themes = (c.dataset.themes || '').split('|');
+    c.classList.toggle('highlight-theme', !clear && themes.includes(theme));
+  });
+}
+
+// ===== MACRO / THEMES PAGE =====
+function renderMacro() {
+  const ch = db.channels || { items: {} };
+  const items = ch.items || {};
+  const today = new Date();
+  const daysSince = (iso) => { if (!iso) return null; const d = new Date(iso); return isNaN(d) ? null : Math.floor((today - d) / 86400000); };
+  const tierBadge = (t) => t ? `<span class="tier-badge tier-${t}">T${t}</span>` : '';
+  const readCell = (i) => { if (!i.read) return '<span style="color:var(--muted)">—</span>'; const arrow = {up:'↑',down:'↓',flat:'↔'}[i.dir] || ''; const cls = i.signal==='利多'?'return-positive':i.signal==='利空'?'return-negative':''; return `<span class="${cls}">${arrow} ${i.read}</span>`; };
+  const reviewBadge = (iso) => { const dd = daysSince(iso); if (dd === null) return ''; return dd > 0 ? `<span class="badge badge-danger">待更新 ${dd} 天</span>` : `<span style="font-size:0.72rem;color:var(--muted)">下次更新 ${iso}</span>`; };
+
+  const order = ['rates', 'us', 'tw', 'world', 'tech'];
+  const keys = [...order.filter(k => items[k]), ...Object.keys(items).filter(k => !order.includes(k))];
+
+  const html = keys.map(k => {
+    const c = items[k] || {};
+    const ind = (c.indicators || []).map(i => {
+      const st = daysSince(i.as_of) > 120;
+      return `<tr class="${st?'stale':''}"><td>${i.name}</td><td class="num">${i.latest ?? '—'}</td><td>${readCell(i)}</td><td class="num" style="color:var(--muted)">${i.prev ?? '—'}</td><td>${tierBadge(i.tier)} <span style="font-size:0.68rem;color:var(--muted)">${i.as_of||''}</span></td></tr>`;
+    }).join('');
+    const ev = (c.events || []).map(e => {
+      const st = daysSince(e.date) > 90;
+      return `<div class="${st?'stale':''}" style="margin-bottom:0.3rem">${tierBadge(e.tier)} ${e.url?`<a href="${e.url}" target="_blank" style="color:var(--accent)">${e.event}</a>`:e.event} <span style="font-size:0.68rem;color:var(--muted)">${e.date||''}</span></div>`;
+    }).join('');
+    const up = (c.upcoming || []).map(u => `<div style="display:flex;justify-content:space-between;gap:0.5rem"><span>${u.event}</span><span style="color:var(--muted);white-space:nowrap">${u.date||''}</span></div>`).join('');
+    const tickers = (c.affects_tickers || []).map(t => `<span class="theme-chip" style="cursor:default">${t}</span>`).join('');
+    return `<div class="card stock-note" style="margin-bottom:1rem;padding:1rem">
+      <div class="stock-note-head" onclick="toggleStockNote(this)">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:0.5rem;flex-wrap:wrap">
+          <div style="font-weight:700;font-size:1rem">${c.title || k}</div>
+          <div style="font-size:0.78rem;color:var(--muted)">${reviewBadge(c.next_review_date)} <span class="stock-note-arrow">▶</span></div>
+        </div>
+        ${c.summary ? `<div style="font-size:0.85rem;color:var(--text);margin-top:0.3rem;line-height:1.55"><span style="color:var(--accent)">📌</span> ${c.summary}</div>` : (c.regime ? `<div style="font-size:0.86rem;font-weight:600;color:var(--accent);margin-top:0.3rem">${c.regime}</div>${c.implication ? `<div style="font-size:0.82rem;color:var(--muted);margin-top:0.2rem">→ ${c.implication}</div>` : ''}` : '')}
+      </div>
+      <div class="stock-note-body" style="display:none;margin-top:0.6rem;border-top:1px dashed var(--border);padding-top:0.6rem">
+        ${ind ? `<div class="note-section"><div class="note-label">📊 指標</div><div style="overflow-x:auto"><table class="note-table"><thead><tr><th>指標</th><th class="num">最新</th><th>解讀</th><th class="num">前值</th><th>來源</th></tr></thead><tbody>${ind}</tbody></table></div></div>` : ''}
+        ${ev ? `<div class="note-section"><div class="note-label">📰 近期事件</div>${ev}</div>` : ''}
+        ${up ? `<div class="note-section"><div class="note-label">📅 行事曆</div>${up}</div>` : ''}
+        ${tickers ? `<div class="note-section"><div class="note-label">🔗 影響持股</div>${tickers}</div>` : ''}
+        <div class="note-section" style="color:var(--muted);font-size:0.74rem">上次 review ${c.last_reviewed || '—'}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('macro-channels').innerHTML = html || '<div class="card" style="color:var(--muted)">尚無總經資料，請於下方貼上 channels JSON</div>';
+  document.getElementById('macro-meta').textContent = (ch.date ? '更新於 ' + ch.date + '　' : '') + (ch.source || '');
+}
+
+function applyMacro() {
+  const el = document.getElementById('macro-input');
+  const msg = document.getElementById('macro-msg');
+  const txt = el.value.trim();
+  if (!txt) { msg.textContent = '請貼上 JSON'; msg.style.color = 'var(--danger)'; return; }
+  try {
+    const parsed = JSON.parse(txt);
+    const cur = db.channels || { items: {} };
+    db.channels = {
+      date: parsed.date || cur.date || '',
+      source: parsed.source || cur.source || '',
+      items: { ...(cur.items || {}), ...(parsed.items || {}) },
+    };
+    markUnsaved();
+    renderMacro();
     el.value = '';
     msg.textContent = '✓ 已套用（記得儲存檔案）';
     msg.style.color = 'var(--ok)';
