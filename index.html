@@ -180,6 +180,8 @@
   .conv-med { background: rgba(255,209,102,0.15); color: var(--warn); }
   .conv-low { background: rgba(139,145,181,0.2); color: var(--muted); }
   .card.highlight-theme { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .act-filter { font-size: 0.75rem; padding: 0.15rem 0.6rem; border-radius: 14px; background: var(--card); border: 1px solid var(--border); color: var(--muted); cursor: pointer; }
+  .act-filter.active { border-color: var(--accent); color: var(--accent); background: rgba(108,143,255,0.12); }
 </style>
 </head>
 <body>
@@ -2378,7 +2380,8 @@ function renderStockAnalysis() {
       const reviewLine = `<div class="note-section" style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;flex-wrap:wrap;color:var(--muted);font-size:0.74rem"><span>論點上次重評 ${a.thesis_last_reviewed||'—'}</span>${reviewBadge(a.next_review_date)}</div>`;
       body += why + listSec('🐂 多方必須成立', a.bull) + listSec('🐻 空方必須成立', a.bear) + kill + scenBlock + val + kpis + cats + news + chips + reviewLine;
     }
-    return `<div class="card stock-note" data-symbol="${r.symbol}" data-themes="${themes.join('|')}" style="background:var(--card2);margin-bottom:0.75rem;padding:0.9rem 1rem">
+    const actBucket = pa ? (/增/.test(pa.action) ? 'add' : /(減|封頂|類別|出清)/.test(pa.action) ? 'reduce' : 'hold') : 'na';
+    return `<div class="card stock-note" data-symbol="${r.symbol}" data-act="${actBucket}" data-themes="${themes.join('|')}" style="background:var(--card2);margin-bottom:0.75rem;padding:0.9rem 1rem">
       <div class="stock-note-head" onclick="toggleStockNote(this)">
         <div style="display:flex;justify-content:space-between;align-items:baseline;gap:0.5rem;flex-wrap:wrap">
           <div style="font-weight:700">${r.symbol} <span style="font-weight:400;color:var(--muted);font-size:0.85rem">${r.name}</span> ${convBadge(isRich?a.conviction:null)}${pa?`<span class="badge ${actCls(pa.action)}" style="margin-left:0.2rem">${pa.action}</span>`:''}</div>
@@ -2393,6 +2396,13 @@ function renderStockAnalysis() {
   const twCards = stockRows.filter(r => r.market === 'TW').map(renderCard).join('');
   const usCards = stockRows.filter(r => r.market === 'US').map(renderCard).join('');
   document.getElementById('stock-analysis-cards').innerHTML = `
+    <div style="margin-bottom:0.75rem;display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center">
+      <span style="font-size:0.75rem;color:var(--muted)">依動作篩選</span>
+      <span class="act-filter active" data-filter="all" onclick="filterStockAction('all')">全部</span>
+      <span class="act-filter" data-filter="add" onclick="filterStockAction('add')">🟢 增倉</span>
+      <span class="act-filter" data-filter="hold" onclick="filterStockAction('hold')">持有</span>
+      <span class="act-filter" data-filter="reduce" onclick="filterStockAction('reduce')">🔴 減碼</span>
+    </div>
     <div class="grid-2" style="align-items:start">
       <div>
         ${colHeader('🇹🇼 台股')}
@@ -2484,6 +2494,14 @@ function highlightStockTheme(theme) {
   document.querySelectorAll('#stock-analysis-cards .stock-note').forEach(c => {
     const themes = (c.dataset.themes || '').split('|');
     c.classList.toggle('highlight-theme', !clear && themes.includes(theme));
+  });
+}
+
+// 個股分析:依組合動作篩選(增倉/持有/減碼)
+function filterStockAction(bucket) {
+  document.querySelectorAll('#stock-analysis-cards .act-filter').forEach(c => c.classList.toggle('active', c.dataset.filter === bucket));
+  document.querySelectorAll('#stock-analysis-cards .stock-note').forEach(c => {
+    c.style.display = (bucket === 'all' || c.dataset.act === bucket) ? '' : 'none';
   });
 }
 
