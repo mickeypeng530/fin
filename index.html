@@ -850,17 +850,37 @@ const SEED_SNAPSHOTS = [
   },
 ];
 
-// 不存真實成本價（避免進公開 repo）；真實成本一律從本地 fin_data.json 載入
-const DEFAULT_COST_BASIS = {
-  '0050': 0, '006208': 0, '0056': 0, '00720B': 0, '00929': 0, '00955': 0, '2330': 0, '2646': 0,
-  'VTI': 0, 'QQQ': 0, 'VPL': 0, 'VGK': 0, 'TSLA': 0, 'TSM': 0, 'NVDA': 0, 'VWO': 0, 'BRK.B': 0,
+// 累計投入成本「依池分開」(key 對齊市值結構;台股萬/美股USD)。真實值不進公開 repo,由本地 fin_data.json 載入。
+function emptyCost() {
+  return {
+    short: { fubong50: 0, b00720b: 0 },
+    tw: { tw50: 0, fb50: 0, n0056: 0, n00929: 0, n00955: 0, n2330: 0, n2646: 0, b00720b: 0 },
+    us: { vti: 0, qqq: 0, vpl: 0, vgk: 0, tsla: 0, tsm: 0, nvda: 0, vwo: 0, brkb: 0 },
+  };
+}
+function loadCost(loaded) {
+  const c = emptyCost();
+  if (loaded && loaded.cost) for (const p of ['short','tw','us']) Object.assign(c[p], loaded.cost[p] || {});
+  return c;
+}
+// symbol → [[pool,key],...](跨池標的有多筆),供個股層彙總成本
+const COST_KEYS = {
+  '0050':[['tw','tw50']], '006208':[['short','fubong50'],['tw','fb50']], '0056':[['tw','n0056']],
+  '00929':[['tw','n00929']], '00955':[['tw','n00955']], '2330':[['tw','n2330']], '2646':[['tw','n2646']],
+  '00720B':[['short','b00720b'],['tw','b00720b']],
+  'VTI':[['us','vti']], 'QQQ':[['us','qqq']], 'VPL':[['us','vpl']], 'VGK':[['us','vgk']],
+  'TSLA':[['us','tsla']], 'TSM':[['us','tsm']], 'NVDA':[['us','nvda']], 'VWO':[['us','vwo']], 'BRK.B':[['us','brkb']],
 };
+function symbolCost(symbol) {
+  const c = db.cost || {};
+  return (COST_KEYS[symbol] || []).reduce((a,[p,k]) => a + ((c[p] && c[p][k]) || 0), 0);
+}
 
 // 空骨架：個股近況分析一律由本地 fin_data.json 的 stockAnalysis 提供（分析資料不進公開 repo）
 const DEFAULT_STOCK_ANALYSIS = { date: '', source: '', stocks: {} };
 
 // ===== DATA LAYER =====
-let db = { settings: { ...DEFAULT_SETTINGS }, snapshots: [], costBasis: { ...DEFAULT_COST_BASIS }, prices: {}, advice: null, stockAnalysis: { ...DEFAULT_STOCK_ANALYSIS }, channels: { date: '', source: '', items: {} }, judgmentLog: [] };
+let db = { settings: { ...DEFAULT_SETTINGS }, snapshots: [], cost: emptyCost(), prices: {}, advice: null, stockAnalysis: { ...DEFAULT_STOCK_ANALYSIS }, channels: { date: '', source: '', items: {} }, judgmentLog: [] };
 let hasUnsaved = false;
 let cachedPrices = {}; // { symbol: { price, timestamp } }
 
@@ -886,7 +906,7 @@ function loadFile(event) {
       db = {
         settings: { ...DEFAULT_SETTINGS, ...loaded.settings },
         snapshots: loaded.snapshots || [],
-        costBasis: { ...DEFAULT_COST_BASIS, ...(loaded.costBasis || {}) },
+        cost: loadCost(loaded),
         prices: loaded.prices || {},
         advice: loaded.advice || null,
         stockAnalysis: loaded.stockAnalysis || { ...DEFAULT_STOCK_ANALYSIS },
@@ -922,7 +942,7 @@ function loadFromLocalStorage() {
       db = {
         settings: { ...DEFAULT_SETTINGS, ...loaded.settings },
         snapshots: loaded.snapshots || [],
-        costBasis: { ...DEFAULT_COST_BASIS, ...(loaded.costBasis || {}) },
+        cost: loadCost(loaded),
         prices: loaded.prices || {},
         advice: loaded.advice || null,
         stockAnalysis: loaded.stockAnalysis || { ...DEFAULT_STOCK_ANALYSIS },
@@ -941,7 +961,7 @@ function startNew() {
   db = { 
     settings: { ...DEFAULT_SETTINGS }, 
     snapshots: [...SEED_SNAPSHOTS],
-    costBasis: { ...DEFAULT_COST_BASIS },
+    cost: emptyCost(),
     prices: {},
     advice: null,
     stockAnalysis: { ...DEFAULT_STOCK_ANALYSIS },
@@ -1449,9 +1469,8 @@ function renderPerformance() {
     const days = Math.max(1, (new Date(getDateKey(latest)) - new Date(getDateKey(prev)))/dayMs);
     let inflow, src;
     if (latest.cost && prev.cost) {
-      inflow = 0;
-      const keys = new Set([...Object.keys(latest.cost), ...Object.keys(prev.cost)]);
-      for (const k of keys) { const d=(latest.cost[k]||0)-(prev.cost[k]||0); inflow += (STOCK_DEFS[k]?.market==='US') ? d*usdR/10000 : d; }
+      const sumC = (co) => { let t=0; for (const p of ['short','tw']) for (const k in (co[p]||{})) t += co[p][k]||0; for (const k in (co.us||{})) t += (co.us[k]||0)*usdR/10000; return t; };
+      inflow = sumC(latest.cost) - sumC(prev.cost);
       src = '實際投入';
     } else { inflow = monthlyIn * days/30.44; src = '估計投入'; }
     const pnl = dV - inflow;
@@ -1772,8 +1791,8 @@ function renderHoldingTables(latest) {
   const usd = latest.usdtwd || 32;
   const tw = latest.longPoolTW || {};
   const us = latest.longPoolUS || {};
-  const cb = db.costBasis || {};
-  
+  const cost = db.cost || emptyCost();
+
   // 報酬 = 市值 − 累計投入成本(同單位:台股 萬 / 美股 USD)
   const calcReturn = (marketVal, cost) => {
     if (!cost || cost <= 0) return null;
@@ -1859,21 +1878,23 @@ function renderHoldingTables(latest) {
   const sp = latest.shortPool || {};
   const c = calcSnapshot(latest);
   const shortItems = [
-    { name: '006208 富邦50', val: sp.fubong50 },
-    { name: '00720B 投資級債', val: sp.b00720b },
-    { name: '定存', val: sp.deposit },
+    { name: '006208 富邦50', key: 'fubong50', val: sp.fubong50 },
+    { name: '00720B 投資級債', key: 'b00720b', val: sp.b00720b },
+    { name: '定存', key: null, val: sp.deposit },
   ].filter(s => s.val > 0);
-  
+
   document.getElementById('table-short').innerHTML = `
-    <thead><tr><th>標的</th><th class="num">市值（萬）</th></tr></thead>
+    <thead><tr><th>標的</th><th class="num">市值（萬）</th><th class="num">報酬率</th></tr></thead>
     <tbody>
       ${shortItems.map(s => `<tr>
         <td>${s.name}</td>
         <td class="num">${(s.val||0).toFixed(1)}</td>
+        <td class="num">${s.key ? fmtReturn(calcReturn(s.val, cost.short?.[s.key])) : '<span style="color:var(--muted)">—</span>'}</td>
       </tr>`).join('')}
       <tr style="font-weight:600;border-top:1px solid var(--border)">
         <td>合計</td>
         <td class="num">${c.shortTotal.toFixed(1)}</td>
+        <td></td>
       </tr>
     </tbody>`;
   
@@ -1893,9 +1914,7 @@ function renderHoldingTables(latest) {
     <thead><tr><th>標的</th><th class="num">市值（萬）</th><th class="num">報酬率</th></tr></thead>
     <tbody>
       ${twStocks.map(s => {
-        // 跨池標的(006208/00720B)用「整個部位」市值對整筆累計投入,避免只用長池市值算錯
-        const totalV = (s.val||0) + (s.symbol==='006208' ? (latest.shortPool?.fubong50||0) : s.symbol==='00720B' ? (latest.shortPool?.b00720b||0) : 0);
-        const ret = calcReturn(totalV, cb[s.symbol]);
+        const ret = calcReturn(s.val, cost.tw?.[s.key]);  // 用長期池台股的同 key 成本
         return `<tr>
           <td>${s.name}</td>
           <td class="num">${(s.val||0).toFixed(1)}</td>
@@ -1921,7 +1940,7 @@ function renderHoldingTables(latest) {
     <thead><tr><th>標的</th><th class="num">美元</th><th class="num">台幣（萬）</th><th class="num">報酬率</th></tr></thead>
     <tbody>
       ${usStocks.map(s => {
-        const ret = calcReturn(s.val, cb[s.symbol]);
+        const ret = calcReturn(s.val, cost.us?.[s.key]);
         return `<tr>
           <td>${s.name}</td>
           <td class="num">${(s.val||0).toLocaleString()}</td>
@@ -2086,7 +2105,7 @@ function saveSnapshot() {
     longCashUsd: cashUsd, // 美元現金
     longCashUsdTwd: cashUsdTwd, // 美元現金換算台幣
     usdtwd: usdtwd,
-    cost: { ...db.costBasis }, // 蓋章:當下各標的累計投入成本(供日後拆解投入 vs 市值損益)
+    cost: { short: { ...(db.cost?.short||{}) }, tw: { ...(db.cost?.tw||{}) }, us: { ...(db.cost?.us||{}) } }, // 蓋章:依池累計投入(供拆解投入 vs 市值損益)
   };
   
   const idx = db.snapshots.findIndex(s=>s.date===date);
@@ -2174,45 +2193,39 @@ function saveSettings() {
   renderOverview(); mkForecastCharts();
 }
 
-// ===== COST BASIS =====
+// ===== COST BASIS(累計投入,依池分開)=====
+const COST_GRID = {
+  short: { label: '短中期池（萬）', items: [['fubong50','006208 富邦50'],['b00720b','00720B 投資級債']] },
+  tw: { label: '長期池台股（萬）', items: [['tw50','0050 台灣50'],['fb50','006208 富邦50'],['n0056','0056 高股息'],['n00929','00929'],['n00955','00955 中信日本'],['n2330','2330 台積電'],['n2646','2646 星宇'],['b00720b','00720B 投資級債']] },
+  us: { label: '長期池美股（USD）', items: [['vti','VTI'],['qqq','QQQ'],['vpl','VPL'],['vgk','VGK'],['tsla','TSLA'],['tsm','TSM'],['nvda','NVDA'],['vwo','VWO'],['brkb','BRK.B']] },
+};
 function renderCostBasisGrid() {
   const grid = document.getElementById('cost-basis-grid');
-  const cb = db.costBasis || DEFAULT_COST_BASIS;
-  
-  const twStocks = ['0050', '006208', '0056', '00720B', '00929', '00955', '2330', '2646'];
-  const usStocks = ['VTI', 'QQQ', 'VPL', 'VGK', 'TSLA', 'TSM', 'NVDA', 'VWO', 'BRK.B'];
-  
-  grid.innerHTML = `
-    <div style="grid-column: 1/-1;font-size:0.8rem;color:var(--muted);margin-bottom:0.5rem">台股累計投入（萬）</div>
-    ${twStocks.map(s => `
+  const c = db.cost || emptyCost();
+  let html = '';
+  for (const pool of ['short','tw','us']) {
+    const g = COST_GRID[pool];
+    html += `<div style="grid-column:1/-1;font-size:0.8rem;color:var(--muted);margin:0.6rem 0 0.3rem">${g.label}</div>`;
+    html += g.items.map(([key,label]) => `
       <div class="input-group">
-        <label>${s} ${STOCK_DEFS[s]?.name || ''}</label>
-        <input type="number" id="cb-${s}" value="${cb[s] || ''}" step="0.01" placeholder="0">
-      </div>
-    `).join('')}
-    <div style="grid-column: 1/-1;font-size:0.8rem;color:var(--muted);margin:1rem 0 0.5rem">美股累計投入（USD）</div>
-    ${usStocks.map(s => `
-      <div class="input-group">
-        <label>${s} ${STOCK_DEFS[s]?.name || ''}</label>
-        <input type="number" id="cb-${s}" value="${cb[s] || ''}" step="0.01" placeholder="0">
-      </div>
-    `).join('')}
-  `;
+        <label>${label}</label>
+        <input type="number" id="cost-${pool}-${key}" value="${(c[pool] && c[pool][key]) || ''}" step="0.1" placeholder="0">
+      </div>`).join('');
+  }
+  grid.innerHTML = html;
 }
 
 function saveCostBasis() {
-  const allStocks = ['0050', '006208', '0056', '00720B', '00929', '00955', '2330', '2646', 'VTI', 'QQQ', 'VPL', 'VGK', 'TSLA', 'TSM', 'NVDA', 'VWO', 'BRK.B'];
-  
-  db.costBasis = {};
-  for (const s of allStocks) {
-    const input = document.getElementById('cb-' + s);
-    if (input) {
-      db.costBasis[s] = +input.value || 0;
+  const c = emptyCost();
+  for (const pool of ['short','tw','us']) {
+    for (const [key] of COST_GRID[pool].items) {
+      const el = document.getElementById(`cost-${pool}-${key}`);
+      if (el) c[pool][key] = +el.value || 0;
     }
   }
-  
+  db.cost = c;
   markUnsaved();
-  showToast('成本已更新（記得儲存檔案）');
+  showToast('累計投入已更新（記得儲存檔案）');
   renderOverview();
 }
 
@@ -2313,11 +2326,9 @@ function renderStockAnalysis() {
   const usd = latest.usdtwd || 32;
   const c = calcSnapshot(latest);
   const invest = c.invest || 1;
-  const cb = db.costBasis || {};
-
-  // 報酬率 = (市值 − 累計投入)/累計投入(同單位:台股 萬 / 美股 USD)
+  // 報酬率 = (市值 − 累計投入)/累計投入(個股層跨池彙總;台股萬/美股USD)
   const returnPct = (symbol, market, valTwd, valUsd) => {
-    const cost = cb[symbol];
+    const cost = symbolCost(symbol);
     if (!cost || cost <= 0) return null;
     return market === 'TW' ? (valTwd - cost) / cost * 100 : (valUsd - cost) / cost * 100;
   };
