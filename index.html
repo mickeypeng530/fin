@@ -1893,7 +1893,9 @@ function renderHoldingTables(latest) {
     <thead><tr><th>標的</th><th class="num">市值（萬）</th><th class="num">報酬率</th></tr></thead>
     <tbody>
       ${twStocks.map(s => {
-        const ret = calcReturn(s.val, cb[s.symbol]);
+        // 跨池標的(006208/00720B)用「整個部位」市值對整筆累計投入,避免只用長池市值算錯
+        const totalV = (s.val||0) + (s.symbol==='006208' ? (latest.shortPool?.fubong50||0) : s.symbol==='00720B' ? (latest.shortPool?.b00720b||0) : 0);
+        const ret = calcReturn(totalV, cb[s.symbol]);
         return `<tr>
           <td>${s.name}</td>
           <td class="num">${(s.val||0).toFixed(1)}</td>
