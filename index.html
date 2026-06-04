@@ -2386,7 +2386,7 @@ function renderStockAnalysis() {
         const pct = r.val / invest * 100;
         const mk = r.market === 'US' ? '<span style="font-size:0.7rem;color:var(--muted)">US</span> ' : r.market === 'CASH' ? '<span style="font-size:0.7rem;color:var(--muted)">現金</span> ' : '';
         return `<tr>
-          <td>${mk}${r.name}</td>
+          <td>${mk}${r.symbol ? `<b>${r.symbol}</b> <span style="color:var(--muted);font-size:0.78rem">${r.name}</span>` : r.name}</td>
           <td class="num">${r.val.toFixed(1)}</td>
           <td class="num">${pct.toFixed(1)}%</td>
           <td class="num">${fmtRet(r.ret)}</td>
