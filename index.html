@@ -338,6 +338,17 @@
     <div id="stock-analysis-cards"></div>
   </div>
 
+  <div class="card" style="margin-bottom:1rem">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem">
+      <div class="card-title" style="margin-bottom:0">📒 判斷回顧記分表（我上次判斷後來對嗎）</div>
+      <div id="judgment-calib" style="font-size:0.8rem;color:var(--muted)"></div>
+    </div>
+    <div style="overflow-x:auto;margin-top:0.5rem"><table id="judgment-table" class="note-table"></table></div>
+    <div style="font-size:0.72rem;color:var(--muted);margin-top:0.4rem">對抗過度自信:高信心卻錯會標紅。下次分析時把上次判斷的結果回填(貼 JSON:整個陣列,或 {"add":[...]} 追加)。</div>
+    <textarea id="judgment-input" rows="3" style="width:100%;margin-top:0.5rem;padding:0.6rem;border-radius:8px;border:1px solid var(--border);background:var(--card2);color:var(--text);font-family:monospace;font-size:0.8rem;resize:vertical" placeholder='{"add":[{"date":"2026-06-04","scope":"2330","type":"動作","claim":"封頂只減不加","confidence":"高","outcome":{"verdict":"待驗證"}}]}'></textarea>
+    <div style="margin-top:0.4rem;display:flex;gap:0.5rem;align-items:center"><button class="btn btn-primary" onclick="applyJudgment()">套用</button><span id="judgment-msg" style="font-size:0.85rem"></span></div>
+  </div>
+
   <div class="card">
     <div class="card-title">📋 更新個股分析（貼上 JSON）</div>
     <p style="font-size:0.82rem;color:var(--muted);margin-bottom:0.5rem">問 Claude 分析後，貼上個股分析 JSON 即可更新此頁（會與現有分析合併）</p>
@@ -844,7 +855,7 @@ const DEFAULT_COST_BASIS = {
 const DEFAULT_STOCK_ANALYSIS = { date: '', source: '', stocks: {} };
 
 // ===== DATA LAYER =====
-let db = { settings: { ...DEFAULT_SETTINGS }, snapshots: [], costBasis: { ...DEFAULT_COST_BASIS }, prices: {}, advice: null, stockAnalysis: { ...DEFAULT_STOCK_ANALYSIS }, channels: { date: '', source: '', items: {} } };
+let db = { settings: { ...DEFAULT_SETTINGS }, snapshots: [], costBasis: { ...DEFAULT_COST_BASIS }, prices: {}, advice: null, stockAnalysis: { ...DEFAULT_STOCK_ANALYSIS }, channels: { date: '', source: '', items: {} }, judgmentLog: [] };
 let hasUnsaved = false;
 let cachedPrices = {}; // { symbol: { price, timestamp } }
 
@@ -875,6 +886,7 @@ function loadFile(event) {
         advice: loaded.advice || null,
         stockAnalysis: loaded.stockAnalysis || { ...DEFAULT_STOCK_ANALYSIS },
         channels: loaded.channels || { date: '', source: '', items: {} },
+        judgmentLog: loaded.judgmentLog || [],
       };
       saveToLocalStorage(); // 自動存到 localStorage
       enterApp();
@@ -910,6 +922,7 @@ function loadFromLocalStorage() {
         advice: loaded.advice || null,
         stockAnalysis: loaded.stockAnalysis || { ...DEFAULT_STOCK_ANALYSIS },
         channels: loaded.channels || { date: '', source: '', items: {} },
+        judgmentLog: loaded.judgmentLog || [],
       };
       return true;
     }
@@ -928,6 +941,7 @@ function startNew() {
     advice: null,
     stockAnalysis: { ...DEFAULT_STOCK_ANALYSIS },
     channels: { date: '', source: '', items: {} },
+    judgmentLog: [],
   };
   saveToLocalStorage(); // 自動存到 localStorage
   enterApp();
@@ -2209,7 +2223,7 @@ function showPage(id, btn) {
   document.getElementById('page-'+id).classList.add('active');
   if (btn) btn.classList.add('active');
   if (id==='overview') { renderOverview(); }
-  if (id==='stock') { renderStockAnalysis(); }
+  if (id==='stock') { renderStockAnalysis(); renderJudgmentLog(); }
   if (id==='macro') { renderMacro(); }
   if (id==='history') { renderHistory(); }
   if (id==='forecast') { mkForecastCharts(); }
@@ -2438,6 +2452,44 @@ function applyStockAnalysis() {
     msg.textContent = 'JSON 格式錯誤：' + e.message;
     msg.style.color = 'var(--danger)';
   }
+}
+
+// ④ 問責記分表:記錄過去判斷 + 事後對照,讓「高信心卻錯」顯眼(對抗過度自信)
+function renderJudgmentLog() {
+  const log = Array.isArray(db.judgmentLog) ? db.judgmentLog : [];
+  const tableEl = document.getElementById('judgment-table');
+  const calibEl = document.getElementById('judgment-calib');
+  if (!tableEl) return;
+  const vClr = { '對':'var(--ok)', '錯':'var(--danger)', '部分':'var(--warn)', '待驗證':'var(--muted)' };
+  const rows = [...log].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  tableEl.innerHTML = `<thead><tr><th>日期</th><th>標的/範圍</th><th>判斷</th><th>信心</th><th>結果</th></tr></thead><tbody>${
+    rows.length ? rows.map(j=>{
+      const v = (j.outcome && j.outcome.verdict) || '待驗證';
+      const hiWrong = j.confidence==='高' && v==='錯';
+      const note = (j.outcome && j.outcome.note) ? `<span style="color:var(--muted);font-size:0.72rem"> · ${j.outcome.note}</span>` : '';
+      return `<tr style="${hiWrong?'background:rgba(255,107,138,0.12)':''}"><td>${j.date||''}</td><td>${j.scope||''} <span style="color:var(--muted);font-size:0.72rem">${j.type||''}</span></td><td>${j.claim||''}</td><td>${j.confidence||'—'}</td><td style="color:${vClr[v]||'var(--muted)'}">${hiWrong?'⚠️ ':''}${v}${note}</td></tr>`;
+    }).join('') : '<tr><td colspan="5" style="color:var(--muted)">尚無判斷紀錄。每次分析時把關鍵判斷+信心記入,下次回填結果。</td></tr>'
+  }</tbody>`;
+  const resolved = log.filter(j=>['對','錯','部分'].includes(j.outcome && j.outcome.verdict));
+  const correct = resolved.filter(j=>j.outcome.verdict==='對').length;
+  const hiWrongN = log.filter(j=>j.confidence==='高' && (j.outcome && j.outcome.verdict)==='錯').length;
+  if (calibEl) calibEl.innerHTML = log.length ? `已驗證 ${resolved.length} 筆,對 ${correct}｜<span style="color:${hiWrongN>0?'var(--danger)':'var(--muted)'}">高信心卻錯 ${hiWrongN}</span>` : '';
+}
+
+function applyJudgment() {
+  const el = document.getElementById('judgment-input');
+  const msg = document.getElementById('judgment-msg');
+  const txt = el.value.trim();
+  if (!txt) { msg.textContent='請貼上 JSON'; msg.style.color='var(--danger)'; return; }
+  try {
+    const parsed = JSON.parse(txt);
+    if (Array.isArray(parsed)) db.judgmentLog = parsed;
+    else if (Array.isArray(parsed.judgmentLog)) db.judgmentLog = parsed.judgmentLog;
+    else if (Array.isArray(parsed.add)) db.judgmentLog = [...(db.judgmentLog||[]), ...parsed.add];
+    else throw new Error('需為陣列、或 {judgmentLog:[...]}、或 {add:[...]}');
+    markUnsaved(); renderJudgmentLog(); el.value='';
+    msg.textContent='✓ 已套用（記得儲存檔案）'; msg.style.color='var(--ok)';
+  } catch(e){ msg.textContent='JSON 格式錯誤：'+e.message; msg.style.color='var(--danger)'; }
 }
 
 function toggleStockNote(headEl) {
