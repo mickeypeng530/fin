@@ -291,6 +291,11 @@
     </div>
   </div>
 
+  <div class="card" style="margin-bottom:1rem">
+    <div class="card-title">📈 投資績效與集中度</div>
+    <div id="perf-content"></div>
+  </div>
+
   <div class="grid-3" style="grid-template-columns: 1fr 1.2fr 1.2fr">
     <div class="card">
       <div class="card-title">短中期池</div>
@@ -1417,25 +1422,59 @@ function mkHistoryChart() {
   });
 }
 
+// 統計缺口:組合報酬率(Modified Dietz 近似)+ 本期投入/市值損益拆解 + 前五大持股
+function renderPerformance() {
+  const el = document.getElementById('perf-content');
+  if (!el) return;
+  const snaps = [...db.snapshots].sort((a,b)=>getDateKey(a).localeCompare(getDateKey(b)));
+  if (!snaps.length) { el.innerHTML = '<span style="color:var(--muted)">資料不足</span>'; return; }
+  const monthlyIn = (db.settings.monthlyShort||0) + (db.settings.monthlyLong||0);
+  const dayMs = 86400000;
+  const latest = snaps[snaps.length-1], first = snaps[0];
+  const cL = calcSnapshot(latest), cF = calcSnapshot(first);
+  const clr = v => v>=0 ? 'var(--ok)' : 'var(--danger)';
+  const sign = v => (v>=0?'+':'') + v.toFixed(1);
+  // Modified Dietz(自起點,近似:假設每月投入=設定值)
+  const totalDays = Math.max(1, (new Date(getDateKey(latest)) - new Date(getDateKey(first)))/dayMs);
+  const totalMonths = totalDays/30.44;
+  const F = monthlyIn * totalMonths;
+  const md = cF.invest>0 ? (cL.invest - cF.invest - F)/(cF.invest + F/2)*100 : null;
+  const mdHtml = md!=null ? `<div style="margin-bottom:0.6rem"><div class="note-label">自起點組合報酬率(Modified Dietz, 近似)</div><div style="font-size:1.15rem;font-weight:700;color:${clr(md)}">${sign(md)}%</div><div style="font-size:0.72rem;color:var(--muted)">期間 ${totalMonths.toFixed(1)} 個月,假設每月投入 ${monthlyIn} 萬(設定值);實際投入不同會改變此值</div></div>` : '';
+  // 本期拆解
+  let decomp = '';
+  if (snaps.length>=2) {
+    const prev = snaps[snaps.length-2], cP = calcSnapshot(prev);
+    const dV = cL.invest - cP.invest;
+    const days = Math.max(1, (new Date(getDateKey(latest)) - new Date(getDateKey(prev)))/dayMs);
+    const inflow = monthlyIn * days/30.44;
+    const pnl = dV - inflow;
+    decomp = `<div style="margin-bottom:0.6rem"><div class="note-label">本期變動拆解(${getDateKey(prev)} → ${getDateKey(latest)})</div><div style="font-size:0.9rem">投資總額 <b style="color:${clr(dV)}">${sign(dV)}</b> 萬 ＝ 估計投入 <b>${inflow.toFixed(1)}</b> + 市值損益 <b style="color:${clr(pnl)}">${sign(pnl)}</b> 萬</div></div>`;
+  }
+  // 前五大持股(raw 市值)
+  const usd = latest.usdtwd||32, val={};
+  const add=(n,v)=>{if(v>0)val[n]=(val[n]||0)+v;};
+  const twMap={tw50:'0050 台灣50',fb50:'006208 富邦50',n0056:'0056 高股息',n00929:'00929',n00955:'00955 中信日本',n2330:'2330 台積電',n2646:'2646 星宇',b00720b:'00720B'};
+  for(const[k,n]of Object.entries(twMap))add(n,latest.longPoolTW?.[k]||0);
+  add('006208 富邦50', latest.shortPool?.fubong50||0); add('00720B', latest.shortPool?.b00720b||0);
+  const usMap={vti:'VTI',qqq:'QQQ',vpl:'VPL',vgk:'VGK',tsla:'TSLA',tsm:'TSM',nvda:'NVDA',vwo:'VWO',brkb:'BRK.B'};
+  for(const[k,n]of Object.entries(usMap))add(n,(latest.longPoolUS?.[k]||0)*usd/10000);
+  const invest = cL.invest||1;
+  const top5 = Object.entries(val).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const top5Html = `<div class="note-label">前五大持股(佔投資總額 ${invest.toFixed(0)} 萬)</div><div style="overflow-x:auto"><table class="note-table"><tbody>${top5.map(([n,v],i)=>`<tr><td>${i+1}. ${n}</td><td class="num">${v.toFixed(1)} 萬</td><td class="num"><b>${(v/invest*100).toFixed(1)}%</b></td></tr>`).join('')}</tbody></table></div>`;
+  el.innerHTML = mdHtml + decomp + top5Html;
+}
+
 function mkForecastCharts() {
   const snaps = [...db.snapshots].sort((a,b)=>getDateKey(a).localeCompare(getDateKey(b)));
   if (!snaps.length) return;
   
-  // 固定起點：第一筆資料
-  const first = snaps[0];
-  const firstCalc = calcSnapshot(first);
-  const shortRows = calcShortForecast(firstCalc.shortTotal, db.settings);
-  const longRows = calcLongForecast(firstCalc.longTotal, db.settings);
-  
-  // 目前位置
+  // 起點：最新一筆資料(向前預測,與總覽目標進度一致 — 修正先前兩頁起點不一致的 bug)
   const latest = snaps[snaps.length - 1];
   const latestCalc = calcSnapshot(latest);
-  const startYear = getYear(first);
-  const currentYear = getYear(latest);
-  const yearsPassed = currentYear - startYear; // 經過幾年
-  
-  // 計算目前應該在預測的哪個位置（用於標示）
-  const currentYrIndex = yearsPassed + 1; // 第幾年（1-based）
+  const shortRows = calcShortForecast(latestCalc.shortTotal, db.settings);
+  const longRows = calcLongForecast(latestCalc.longTotal, db.settings);
+  const startYear = getYear(latest);
+  const currentYrIndex = 1; // 起點即現在
   
   destroyChart('short-forecast');
   const ctx1 = document.getElementById('chart-short-forecast').getContext('2d');
@@ -1518,16 +1557,20 @@ function mkForecastCharts() {
   const shortActual = latestCalc.shortTotal;
   const shortExpected = shortRows[currentYrIndex - 1]?.end || shortRows[0]?.end || 0;
   const shortDiff = shortActual - shortExpected;
-  const shortAnalysis = shortDiff >= 0 
-    ? `<span style="color:var(--ok)">超前 ${shortDiff.toFixed(1)} 萬 ✓</span>`
-    : `<span style="color:var(--danger)">落後 ${Math.abs(shortDiff).toFixed(1)} 萬，需加速</span>`;
+  const shortAnalysis = currentYrIndex === 1
+    ? '<span style="color:var(--muted)">起點 = 現在</span>'
+    : (shortDiff >= 0
+      ? `<span style="color:var(--ok)">超前 ${shortDiff.toFixed(1)} 萬 ✓</span>`
+      : `<span style="color:var(--danger)">落後 ${Math.abs(shortDiff).toFixed(1)} 萬，需加速</span>`);
     
   const longActual = latestCalc.longTotal;
   const longExpected = longRows[currentYrIndex - 1]?.end || longRows[0]?.end || 0;
   const longDiff = longActual - longExpected;
-  const longAnalysis = longDiff >= 0 
-    ? `<span style="color:var(--ok)">超前 ${longDiff.toFixed(1)} 萬 ✓</span>`
-    : `<span style="color:var(--danger)">落後 ${Math.abs(longDiff).toFixed(1)} 萬，需加速</span>`;
+  const longAnalysis = currentYrIndex === 1
+    ? '<span style="color:var(--muted)">起點 = 現在</span>'
+    : (longDiff >= 0
+      ? `<span style="color:var(--ok)">超前 ${longDiff.toFixed(1)} 萬 ✓</span>`
+      : `<span style="color:var(--danger)">落後 ${Math.abs(longDiff).toFixed(1)} 萬，需加速</span>`);
 
   // 目前日期
   const currentDate = getDisplayDate(latest);
@@ -1659,6 +1702,7 @@ function renderOverview() {
   renderHoldingTables(latest);
 
   mkAllocationChart();
+  renderPerformance();
 }
 
 function renderConcentrationAlerts(snap) {
