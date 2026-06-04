@@ -1183,6 +1183,60 @@ function calcEffectiveWeights(s) {
   return { invest, nvdaEffPct: effVal('NVDA') / invest * 100 };
 }
 
+// ③ 組合閘門行動引擎:由配置/集中度/重疊推導每股動作(組合層覆寫個股看法)
+function calcPortfolioActions(s) {
+  const conc = calcConcentration(s);
+  const tsmcLimit = db.settings.tsmcLimit || 40;
+  const techLimit = db.settings.techLimit || 45;
+  const twTotal = s.longPoolTW?.total || 0;
+  const usTotal = s.longPoolUS?.total || 0;
+  const longTotal = twTotal + usTotal + (s.longCash || 0);
+  const twPct = longTotal > 0 ? twTotal / longTotal * 100 : 0;
+  const usPct = longTotal > 0 ? usTotal / longTotal * 100 : 0;
+  const twOver = twPct > 70;     // 目標 60-70%
+  const usUnder = usPct < 30;    // 目標 30-35%
+  const has0050 = (s.longPoolTW?.tw50 || 0) > 0;
+  const has006208 = (s.longPoolTW?.fb50 || 0) > 0 || (s.shortPool?.fubong50 || 0) > 0;
+  const sa = db.stockAnalysis?.stocks || {};
+  const out = {};
+  const decide = (sym, market) => {
+    if (out[sym]) return;
+    const def = STOCK_DEFS[sym] || {};
+    const isTsmc = (def.tsmcWeight || 0) >= 0.5 || sym === 'TSM';
+    const isTech = (def.techWeight || 0) >= 0.55;
+    const conv = sa[sym]?.conviction;
+    let action, reason;
+    if (isTsmc && conc.tsmc > tsmcLimit) {
+      action = '封頂·只減不加'; reason = `台積電曝險 ${conc.tsmc.toFixed(0)}% > 上限 ${tsmcLimit}%,此標的是主要貢獻者`;
+    } else if (isTech && conc.tech > techLimit) {
+      action = '類別只減不加'; reason = `科技曝險 ${conc.tech.toFixed(0)}% > 上限 ${techLimit}%`;
+    } else if (market === 'US' && !isTech && (def.tsmcWeight || 0) < 0.1 && usUnder) {
+      action = '增倉首選'; reason = `美股低配 ${usPct.toFixed(0)}% < 目標 30-35%,且非科技(降集中)`;
+    } else if (market === 'TW' && twOver) {
+      action = '持有'; reason = `台股已超配 ${twPct.toFixed(0)}% > 70%,不再加碼`;
+    } else if (conv === 'high') {
+      action = '可增'; reason = '未踩上限、個股信心高';
+    } else if (conv === 'low') {
+      action = '減'; reason = '個股信心低';
+    } else {
+      action = '持有'; reason = '未踩上限';
+    }
+    let overlap = '';
+    if (sym === '006208' && has0050) overlap = '與 0050 同指數 → 可擇一出清去重';
+    else if (sym === '0050' && has006208) overlap = '與 006208 同指數(重複持有)';
+    else if (sym === 'NVDA') overlap = 'QQQ 已內含 ~10% NVDA(真實曝險更高)';
+    else if (sym === 'QQQ') overlap = '與直接持有的 NVDA 重疊';
+    const conflict = conv === 'high' && /(減|封頂|類別|出清)/.test(action);
+    out[sym] = { action, reason, overlap, conflict, conviction: conv };
+  };
+  const twMap = { tw50:'0050', fb50:'006208', n0056:'0056', n00929:'00929', n00955:'00955', n2330:'2330', n2646:'2646', b00720b:'00720B' };
+  for (const [k, sym] of Object.entries(twMap)) if ((s.longPoolTW?.[k] || 0) > 0) decide(sym, 'TW');
+  if ((s.shortPool?.fubong50 || 0) > 0) decide('006208', 'TW');
+  const usMap = { vti:'VTI', qqq:'QQQ', vpl:'VPL', vgk:'VGK', tsla:'TSLA', tsm:'TSM', nvda:'NVDA', vwo:'VWO', brkb:'BRK.B' };
+  for (const [k, sym] of Object.entries(usMap)) if ((s.longPoolUS?.[k] || 0) > 0) decide(sym, 'US');
+  return out;
+}
+
 // ===== FORECAST =====
 function calcShortForecast(startAmount, settings) {
   const rows = [];
@@ -2298,34 +2352,47 @@ function renderStockAnalysis() {
   const tierBadge = (t) => t ? `<span class="tier-badge tier-${t}">T${t}</span>` : '';
   const convBadge = (c) => { if (!c) return ''; const cls = {high:'conv-high',med:'conv-med',low:'conv-low'}[c] || 'conv-med'; const lbl = {high:'高信念',med:'中信念',low:'低信念'}[c] || c; return `<span class="badge ${cls}">${lbl}</span>`; };
   const reviewBadge = (iso) => { const dd = daysSince(iso); if (dd === null) return ''; return dd > 0 ? `<span class="badge badge-danger">重評逾期 ${dd} 天</span>` : `<span style="font-size:0.72rem;color:var(--muted)">下次重評 ${iso}</span>`; };
+  const portfolioActions = calcPortfolioActions(latest);
+  const actCls = (act) => /增/.test(act) ? 'badge-ok' : /(減|封頂|類別|出清)/.test(act) ? 'badge-danger' : '';
+  const actTextCls = (act) => /增/.test(act) ? 'return-positive' : /(減|封頂|類別|出清)/.test(act) ? 'return-negative' : '';
+  const actBlock = (pa) => {
+    if (!pa) return '';
+    const overlap = pa.overlap ? `<div style="font-size:0.78rem;color:var(--muted);margin-top:0.2rem">🔁 ${pa.overlap}</div>` : '';
+    const conflict = pa.conflict ? `<div class="note-kill" style="margin-top:0.3rem"><span style="color:var(--danger)">⚖️ 以組合為準:個股看好但已超配/超限 → ${pa.action}</span></div>` : '';
+    return `<div class="note-section" style="background:rgba(108,143,255,0.06);border-radius:6px;padding:0.5rem 0.6rem"><div class="note-label">⚖️ 組合動作(由配置/集中度推導)</div><div><b class="${actTextCls(pa.action)}">${pa.action}</b> <span style="font-size:0.82rem;color:var(--muted)">${pa.reason}</span></div>${overlap}${conflict}</div>`;
+  };
   const renderCard = (r) => {
     const a = (sa.stocks && sa.stocks[r.symbol]) || null;
+    const pa = portfolioActions[r.symbol];
     const pct = (r.val / invest * 100).toFixed(1);
     const retBadge = r.ret === null ? '' : `<span class="badge ${r.ret>=0?'badge-ok':'badge-danger'}">${r.ret>=0?'+':''}${r.ret.toFixed(1)}%</span>`;
     const isRich = !!(a && (a.thesis_one_liner || a.bull || a.what_would_change_my_mind || a.monitoring_kpis));
     const oneLiner = a ? (a.thesis_one_liner || a.view || '') : '';
     const themes = (isRich && Array.isArray(a.theme_tags)) ? a.theme_tags : [];
-    let body;
+    let body = actBlock(pa);
     if (!a) {
-      body = '<div style="font-size:0.85rem;color:var(--muted)">尚無分析（可於下方貼上 JSON 更新）</div>';
+      body += '<div class="note-section" style="color:var(--muted)">尚無個股分析（可於下方貼上 JSON 更新）</div>';
     } else if (!isRich) {
-      body = field('📈','近況', a.recent) + field('🔔','催化劑', a.catalyst) + field('⚠️','風險', a.risk);
+      body += field('📈','近況', a.recent) + field('🔭','短期該盯', a.catalyst) + field('⚠️','風險', a.risk);
     } else {
       const listSec = (label, arr) => (Array.isArray(arr) && arr.length) ? `<div class="note-section"><div class="note-label">${label}</div><ul style="margin:0 0 0 1.1rem;padding:0">${arr.map(x=>`<li>${x}</li>`).join('')}</ul></div>` : '';
       const why = a.why_mispriced ? `<div class="note-section"><div class="note-label">市場錯價在哪</div>${a.why_mispriced}</div>` : '';
       const kill = (Array.isArray(a.what_would_change_my_mind) && a.what_would_change_my_mind.length) ? `<div class="note-section note-kill"><div class="note-label" style="color:var(--danger)">🚫 推翻條件 / 該重評的訊號</div><ul style="margin:0 0 0 1.1rem;padding:0">${a.what_would_change_my_mind.map(x=>`<li>${x}</li>`).join('')}</ul></div>` : '';
-      const val = a.valuation_anchor ? `<div class="note-section"><div class="note-label">估值錨</div>${a.valuation_anchor}</div>` : '';
+      const scen = a.scenarios;
+      const scenBlock = (scen && typeof scen === 'object') ? `<div class="note-section"><div class="note-label">📊 中期情境(3–18M)</div>${['bull','base','bear'].filter(x=>scen[x]).map(x=>{const lbl={bull:'🐂 多',base:'◆ 基準',bear:'🐻 空'}[x];const p=scen[x].prob!=null?`<b>${scen[x].prob}%</b> `:'';return `<div style="margin-bottom:0.15rem">${lbl} ${p}<span style="color:var(--muted)">${scen[x].note||''}</span></div>`;}).join('')}</div>` : '';
+      const bucket = a.goal_bucket ? ` <span style="color:var(--muted);font-size:0.78rem">· 目標桶:${a.goal_bucket}</span>` : '';
+      const val = a.valuation_anchor ? `<div class="note-section"><div class="note-label">⚓ 長期估值錨(2–10Y)</div>${a.valuation_anchor}${bucket}</div>` : (a.goal_bucket ? `<div class="note-section"><div class="note-label">⚓ 長期</div><span style="color:var(--muted)">目標桶:${a.goal_bucket}</span></div>` : '');
       const kpis = (Array.isArray(a.monitoring_kpis) && a.monitoring_kpis.length) ? `<div class="note-section"><div class="note-label">📊 監控 KPI</div><table class="note-table"><thead><tr><th>指標</th><th class="num">最新</th><th class="num">前值</th><th>來源</th></tr></thead><tbody>${a.monitoring_kpis.map(k=>`<tr class="${daysSince(k.as_of)>120?'stale':''}"><td>${k.name}</td><td class="num">${k.latest||'—'}</td><td class="num" style="color:var(--muted)">${k.prev||'—'}</td><td>${tierBadge(k.tier)} <span style="font-size:0.68rem;color:var(--muted)">${k.as_of||''}</span></td></tr>`).join('')}</tbody></table></div>` : '';
-      const cats = (Array.isArray(a.catalysts) && a.catalysts.length) ? `<div class="note-section"><div class="note-label">🔔 催化劑</div>${a.catalysts.map(c=>`<div style="display:flex;justify-content:space-between;gap:0.5rem"><span>${c.event}</span><span style="color:var(--muted);white-space:nowrap">${c.date||''}${c.status?' · '+c.status:''}</span></div>`).join('')}</div>` : '';
-      const news = (Array.isArray(a.recent) && a.recent.length) ? `<div class="note-section"><div class="note-label">📈 近況 / 新聞</div>${a.recent.map(n=>{const st=daysSince(n.as_of)>45;return `<div class="${st?'stale':''}" style="margin-bottom:0.3rem">${tierBadge(n.tier)} ${n.url?`<a href="${n.url}" target="_blank" style="color:var(--accent)">${n.summary}</a>`:n.summary} <span style="font-size:0.68rem;color:var(--muted)">${n.as_of||''}${st?' ⚠️過期':''}</span></div>`;}).join('')}</div>` : '';
+      const cats = (Array.isArray(a.catalysts) && a.catalysts.length) ? `<div class="note-section"><div class="note-label">🔭 短期該盯(0–3M 催化劑/觀察)</div>${a.catalysts.map(c=>`<div style="display:flex;justify-content:space-between;gap:0.5rem"><span>${c.event}</span><span style="color:var(--muted);white-space:nowrap">${c.date||''}${c.status?' · '+c.status:''}</span></div>`).join('')}</div>` : '';
+      const news = (Array.isArray(a.recent) && a.recent.length) ? `<div class="note-section"><div class="note-label">📈 近期變動 / 事實</div>${a.recent.map(n=>{const st=daysSince(n.as_of)>45;return `<div class="${st?'stale':''}" style="margin-bottom:0.3rem">${tierBadge(n.tier)} ${n.url?`<a href="${n.url}" target="_blank" style="color:var(--accent)">${n.summary}</a>`:n.summary} <span style="font-size:0.68rem;color:var(--muted)">${n.as_of||''}${st?' ⚠️過期':''}</span></div>`;}).join('')}</div>` : '';
       const chips = themes.length ? `<div class="note-section"><div class="note-label">🔗 主題（點擊高亮同主題持股）</div>${themes.map(t=>`<span class="theme-chip" onclick="event.stopPropagation();highlightStockTheme('${String(t).replace(/'/g,'')}')">${t}</span>`).join('')}</div>` : '';
       const reviewLine = `<div class="note-section" style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;flex-wrap:wrap;color:var(--muted);font-size:0.74rem"><span>論點上次重評 ${a.thesis_last_reviewed||'—'}</span>${reviewBadge(a.next_review_date)}</div>`;
-      body = why + listSec('🐂 多方必須成立', a.bull) + listSec('🐻 空方必須成立', a.bear) + kill + val + kpis + cats + news + chips + reviewLine;
+      body += why + listSec('🐂 多方必須成立', a.bull) + listSec('🐻 空方必須成立', a.bear) + kill + scenBlock + val + kpis + cats + news + chips + reviewLine;
     }
     return `<div class="card stock-note" data-symbol="${r.symbol}" data-themes="${themes.join('|')}" style="background:var(--card2);margin-bottom:0.75rem;padding:0.9rem 1rem">
       <div class="stock-note-head" onclick="toggleStockNote(this)">
         <div style="display:flex;justify-content:space-between;align-items:baseline;gap:0.5rem;flex-wrap:wrap">
-          <div style="font-weight:700">${r.symbol} <span style="font-weight:400;color:var(--muted);font-size:0.85rem">${r.name}</span> ${convBadge(isRich?a.conviction:null)}</div>
+          <div style="font-weight:700">${r.symbol} <span style="font-weight:400;color:var(--muted);font-size:0.85rem">${r.name}</span> ${convBadge(isRich?a.conviction:null)}${pa?`<span class="badge ${actCls(pa.action)}" style="margin-left:0.2rem">${pa.action}</span>`:''}</div>
           <div style="font-size:0.82rem;color:var(--muted)">${pct}% ｜ ${r.val.toFixed(1)}萬 ${retBadge} <span class="stock-note-arrow">▶</span></div>
         </div>
         ${oneLiner ? `<div style="font-size:0.86rem;font-weight:600;color:var(--accent);margin-top:0.25rem">${oneLiner}</div>` : ''}
