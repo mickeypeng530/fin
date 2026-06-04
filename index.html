@@ -2315,7 +2315,7 @@ function renderStockAnalysis() {
     <tbody>
       ${rows.map(r => {
         const pct = r.val / invest * 100;
-        const mk = r.market === 'US' ? '<span style="font-size:0.7rem;color:var(--muted)">US</span> ' : r.market === 'CASH' ? '<span style="font-size:0.7rem;color:var(--muted)">現金</span> ' : '';
+        const mk = `<span style="font-size:0.68rem;color:var(--muted);display:inline-block;min-width:1.6rem">${({TW:'TW',US:'US',CASH:'現金'})[r.market]||''}</span> `;
         return `<tr>
           <td>${mk}${r.symbol ? `<b>${r.symbol}</b> <span style="color:var(--muted);font-size:0.78rem">${r.name}</span>` : r.name}</td>
           <td class="num">${r.val.toFixed(1)}</td>
@@ -2519,6 +2519,7 @@ function renderMacro() {
           <div style="font-size:0.78rem;color:var(--muted)">${reviewBadge(c.next_review_date)} <span class="stock-note-arrow">▶</span></div>
         </div>
         ${c.summary ? `<div style="font-size:0.85rem;color:var(--text);margin-top:0.3rem;line-height:1.55"><span style="color:var(--accent)">📌</span> ${c.summary}</div>` : (c.regime ? `<div style="font-size:0.86rem;font-weight:600;color:var(--accent);margin-top:0.3rem">${c.regime}</div>${c.implication ? `<div style="font-size:0.82rem;color:var(--muted);margin-top:0.2rem">→ ${c.implication}</div>` : ''}` : '')}
+        ${Array.isArray(c.impacts) && c.impacts.length ? `<div style="font-size:0.82rem;margin-top:0.4rem;background:rgba(108,143,255,0.06);border-radius:6px;padding:0.4rem 0.55rem">🎯 對持股:${c.impacts.map(im=>`<span style="margin-right:0.5rem"><b>${im.ticker}</b> <span class="${im.signal==='利空'?'return-negative':im.signal==='利多'?'return-positive':''}">${im.effect}</span></span>`).join('')}</div>` : ''}
       </div>
       <div class="stock-note-body" style="display:none;margin-top:0.6rem;border-top:1px dashed var(--border);padding-top:0.6rem">
         ${ind ? `<div class="note-section"><div class="note-label">📊 指標</div><div style="overflow-x:auto"><table class="note-table"><thead><tr><th>指標</th><th class="num">最新</th><th>解讀</th><th class="num">前值</th><th>來源</th></tr></thead><tbody>${ind}</tbody></table></div></div>` : ''}
