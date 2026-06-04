@@ -1854,8 +1854,8 @@ function renderHoldingTables(latest) {
   const sp = latest.shortPool || {};
   const c = calcSnapshot(latest);
   const shortItems = [
-    { name: '富邦50', val: sp.fubong50 },
-    { name: '00720B', val: sp.b00720b },
+    { name: '006208 富邦50', val: sp.fubong50 },
+    { name: '00720B 投資級債', val: sp.b00720b },
     { name: '定存', val: sp.deposit },
   ].filter(s => s.val > 0);
   
@@ -1877,11 +1877,11 @@ function renderHoldingTables(latest) {
     { name: '0050 台灣50', key: 'tw50', symbol: '0050', val: tw.tw50 },
     { name: '006208 富邦50', key: 'fb50', symbol: '006208', val: tw.fb50 },
     { name: '0056 高股息', key: 'n0056', symbol: '0056', val: tw.n0056 },
-    { name: '00929', key: 'n00929', symbol: '00929', val: tw.n00929 },
-    { name: '00955 中信日本', key: 'n00955', symbol: '00955', val: tw.n00955 },
+    { name: '00929 復華科技優息', key: 'n00929', symbol: '00929', val: tw.n00929 },
+    { name: '00955 中信日本商社', key: 'n00955', symbol: '00955', val: tw.n00955 },
     { name: '2330 台積電', key: 'n2330', symbol: '2330', val: tw.n2330 },
-    { name: '2646 星宇', key: 'n2646', symbol: '2646', val: tw.n2646 },
-    { name: '00720B', key: 'b00720b', symbol: '00720B', val: tw.b00720b },
+    { name: '2646 星宇航空', key: 'n2646', symbol: '2646', val: tw.n2646 },
+    { name: '00720B 投資級債', key: 'b00720b', symbol: '00720B', val: tw.b00720b },
   ].filter(s => s.val > 0);
   
   document.getElementById('table-tw').innerHTML = `
@@ -1900,14 +1900,14 @@ function renderHoldingTables(latest) {
   
   // ===== 長期池美股表格 =====
   const usStocks = [
-    { name: 'VTI', key: 'vti', symbol: 'VTI', val: us.vti },
-    { name: 'QQQ', key: 'qqq', symbol: 'QQQ', val: us.qqq },
-    { name: 'VPL', key: 'vpl', symbol: 'VPL', val: us.vpl },
-    { name: 'VGK', key: 'vgk', symbol: 'VGK', val: us.vgk },
-    { name: 'TSLA', key: 'tsla', symbol: 'TSLA', val: us.tsla },
-    { name: 'TSM', key: 'tsm', symbol: 'TSM', val: us.tsm },
-    { name: 'NVDA', key: 'nvda', symbol: 'NVDA', val: us.nvda },
-    { name: 'VWO', key: 'vwo', symbol: 'VWO', val: us.vwo },
+    { name: 'VTI Vanguard 全美股市', key: 'vti', symbol: 'VTI', val: us.vti },
+    { name: 'QQQ Nasdaq 100', key: 'qqq', symbol: 'QQQ', val: us.qqq },
+    { name: 'VPL Vanguard 太平洋', key: 'vpl', symbol: 'VPL', val: us.vpl },
+    { name: 'VGK Vanguard 歐洲', key: 'vgk', symbol: 'VGK', val: us.vgk },
+    { name: 'TSLA Tesla', key: 'tsla', symbol: 'TSLA', val: us.tsla },
+    { name: 'TSM 台積電 ADR', key: 'tsm', symbol: 'TSM', val: us.tsm },
+    { name: 'NVDA NVIDIA', key: 'nvda', symbol: 'NVDA', val: us.nvda },
+    { name: 'VWO Vanguard 新興市場', key: 'vwo', symbol: 'VWO', val: us.vwo },
     { name: 'BRK.B 波克夏', key: 'brkb', symbol: 'BRK.B', val: us.brkb },
   ].filter(s => s.val > 0);
   
