@@ -779,8 +779,9 @@ const STOCK_API_URL = 'https://stock-price.mickeypeng530530.workers.dev/';
 // Stock definitions with TSMC weight for concentration calc
 const STOCK_DEFS = {
   // Taiwan stocks
-  '0050': { name: '台灣50', market: 'TW', tsmcWeight: 0.50, techWeight: 0.70 },
-  '006208': { name: '富邦50', market: 'TW', tsmcWeight: 0.50, techWeight: 0.70 },
+  // tsmcWeight/techWeight = 該標的的台積電/科技「含量」(look-through 估計值, as of 2026-Q2;會隨指數成分漂移,需定期校正)
+  '0050': { name: '台灣50', market: 'TW', tsmcWeight: 0.61, techWeight: 0.70 },
+  '006208': { name: '富邦50', market: 'TW', tsmcWeight: 0.61, techWeight: 0.70 },
   '0056': { name: '高股息', market: 'TW', tsmcWeight: 0.05, techWeight: 0.15 },
   '00720B': { name: '元大投資級公司債', market: 'TW', tsmcWeight: 0, techWeight: 0 },
   '00929': { name: '復華台灣科技優息', market: 'TW', tsmcWeight: 0.15, techWeight: 0.80 },
@@ -795,8 +796,13 @@ const STOCK_DEFS = {
   'TSLA': { name: 'Tesla', market: 'US', tsmcWeight: 0, techWeight: 1.0 },
   'TSM': { name: '台積電 ADR', market: 'US', tsmcWeight: 1.0, techWeight: 1.0 },
   'NVDA': { name: 'NVIDIA', market: 'US', tsmcWeight: 0, techWeight: 1.0 },
-  'VWO': { name: 'Vanguard Emerging', market: 'US', tsmcWeight: 0.08, techWeight: 0.25 },
+  'VWO': { name: 'Vanguard Emerging', market: 'US', tsmcWeight: 0.13, techWeight: 0.25 },
   'BRK.B': { name: '波克夏 B', market: 'US', tsmcWeight: 0, techWeight: 0 },
+};
+
+// ETF 穿透含量表(單一標的的 ETF 內含,用於「真實單一曝險」;StOCK_DEFS 已涵蓋台積電/科技聚合,此處補單一個股重疊如 QQQ 內含 NVDA)
+const LOOKTHROUGH = {
+  'QQQ': { 'NVDA': 0.10 },
 };
 
 // ===== DEFAULT DATA =====
@@ -1142,11 +1148,39 @@ function calcConcentration(s) {
       techExposure += valTwd * def.techWeight;
     }
   }
-  
+
+  // 防呆:台股個股明細加總遠小於 longPoolTW.total → 曝險被嚴重低估(silent failure)
+  const twTotalChk = s.longPoolTW?.total || 0;
+  const twIndiv = Object.keys(twMap).reduce((a,k)=>a + (s.longPoolTW?.[k]||0), 0);
+  const insufficient = twTotalChk > 0 && twIndiv < twTotalChk * 0.5;
+
   return {
     tsmc: (tsmcExposure / totalInvest) * 100,
     tech: (techExposure / totalInvest) * 100,
+    insufficient,
   };
+}
+
+// 穿透曝險:單一標的真實曝險 = 直接持有 + ETF look-through(用於組合層與顯示)
+function calcEffectiveWeights(s) {
+  const usd = s.usdtwd || 32;
+  const invest = calcSnapshot(s).invest || 1;
+  const val = {};
+  const add = (sym, v) => { if (v > 0) val[sym] = (val[sym] || 0) + v; };
+  const twMap = { tw50:'0050', fb50:'006208', n0056:'0056', n00929:'00929', n00955:'00955', n2330:'2330', n2646:'2646', b00720b:'00720B' };
+  for (const [k, sym] of Object.entries(twMap)) add(sym, s.longPoolTW?.[k] || 0);
+  add('006208', s.shortPool?.fubong50 || 0);
+  add('00720B', s.shortPool?.b00720b || 0);
+  const usMap = { vti:'VTI', qqq:'QQQ', vpl:'VPL', vgk:'VGK', tsla:'TSLA', tsm:'TSM', nvda:'NVDA', vwo:'VWO', brkb:'BRK.B' };
+  for (const [k, sym] of Object.entries(usMap)) add(sym, (s.longPoolUS?.[k] || 0) * usd / 10000);
+  const effVal = (target) => {
+    let t = val[target] || 0;
+    for (const [etf, holds] of Object.entries(LOOKTHROUGH)) {
+      if (holds[target] && val[etf]) t += val[etf] * holds[target];
+    }
+    return t;
+  };
+  return { invest, nvdaEffPct: effVal('NVDA') / invest * 100 };
 }
 
 // ===== FORECAST =====
@@ -1565,7 +1599,11 @@ function renderConcentrationAlerts(snap) {
   const techLimit = db.settings.techLimit || 45;
   
   const alerts = [];
-  
+
+  if (conc.insufficient) {
+    alerts.push({ type: 'warn', title: '⚠️ 集中度可能低估', text: '台股只填了合計、個股明細不足,曝險以個股明細計算會偏低。請至輸入頁補各股市值。' });
+  }
+
   if (conc.tsmc > tsmcLimit) {
     alerts.push({
       type: 'danger',
@@ -2218,9 +2256,11 @@ function renderStockAnalysis() {
   const tsmcLimit = db.settings.tsmcLimit || 40;
   const techLimit = db.settings.techLimit || 45;
   const cClr = (p, lim) => p > lim ? 'var(--danger)' : p > lim*0.9 ? 'var(--warn)' : 'var(--ok)';
+  const effW = calcEffectiveWeights(latest);
   document.getElementById('stock-conc-summary').innerHTML =
     `台積電曝險 <b style="color:${cClr(tsmcPct,tsmcLimit)}">${tsmcPct.toFixed(1)}%</b> <span style="color:var(--muted)">/ ${tsmcLimit}%</span>` +
-    ` ｜ 科技曝險 <b style="color:${cClr(techPct,techLimit)}">${techPct.toFixed(1)}%</b> <span style="color:var(--muted)">/ ${techLimit}%</span>`;
+    ` ｜ 科技曝險 <b style="color:${cClr(techPct,techLimit)}">${techPct.toFixed(1)}%</b> <span style="color:var(--muted)">/ ${techLimit}%</span>` +
+    ` ｜ <span style="color:var(--muted)">NVDA 真實 ${effW.nvdaEffPct.toFixed(1)}%(含 QQQ 穿透)</span>`;
 
   const fmtRet = (r) => r === null ? '<span style="color:var(--muted)">—</span>' :
     `<span style="color:${r>=0?'var(--ok)':'var(--danger)'}">${r>=0?'+':''}${r.toFixed(1)}%</span>`;
