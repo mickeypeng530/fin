@@ -763,9 +763,9 @@
   </div>
 
   <div class="card mt2">
-    <div class="card-title">成本基準管理</div>
+    <div class="card-title">累計投入成本</div>
     <div style="font-size:0.85rem;color:var(--muted);margin-bottom:1rem">
-      設定各標的的成本價，系統會自動計算報酬率
+      填各標的「累計投入金額」(台股:萬 / 美股:USD,與市值同單位)。報酬 = 市值 − 累計投入;每次加碼後更新此值。
     </div>
     <div class="settings-grid" id="cost-basis-grid"></div>
     <div class="btn-row" style="margin-top:1rem">
@@ -1440,15 +1440,22 @@ function renderPerformance() {
   const F = monthlyIn * totalMonths;
   const md = cF.invest>0 ? (cL.invest - cF.invest - F)/(cF.invest + F/2)*100 : null;
   const mdHtml = md!=null ? `<div style="margin-bottom:0.6rem"><div class="note-label">自起點組合報酬率(Modified Dietz, 近似)</div><div style="font-size:1.15rem;font-weight:700;color:${clr(md)}">${sign(md)}%</div><div style="font-size:0.72rem;color:var(--muted)">期間 ${totalMonths.toFixed(1)} 個月,假設每月投入 ${monthlyIn} 萬(設定值);實際投入不同會改變此值</div></div>` : '';
-  // 本期拆解
+  // 本期拆解(有 cost 歷史→用實際 Δ累計投入;否則 fallback 估計)
   let decomp = '';
   if (snaps.length>=2) {
     const prev = snaps[snaps.length-2], cP = calcSnapshot(prev);
+    const usdR = latest.usdtwd||32;
     const dV = cL.invest - cP.invest;
     const days = Math.max(1, (new Date(getDateKey(latest)) - new Date(getDateKey(prev)))/dayMs);
-    const inflow = monthlyIn * days/30.44;
+    let inflow, src;
+    if (latest.cost && prev.cost) {
+      inflow = 0;
+      const keys = new Set([...Object.keys(latest.cost), ...Object.keys(prev.cost)]);
+      for (const k of keys) { const d=(latest.cost[k]||0)-(prev.cost[k]||0); inflow += (STOCK_DEFS[k]?.market==='US') ? d*usdR/10000 : d; }
+      src = '實際投入';
+    } else { inflow = monthlyIn * days/30.44; src = '估計投入'; }
     const pnl = dV - inflow;
-    decomp = `<div style="margin-bottom:0.6rem"><div class="note-label">本期變動拆解(${getDateKey(prev)} → ${getDateKey(latest)})</div><div style="font-size:0.9rem">投資總額 <b style="color:${clr(dV)}">${sign(dV)}</b> 萬 ＝ 估計投入 <b>${inflow.toFixed(1)}</b> + 市值損益 <b style="color:${clr(pnl)}">${sign(pnl)}</b> 萬</div></div>`;
+    decomp = `<div style="margin-bottom:0.6rem"><div class="note-label">本期變動拆解(${getDateKey(prev)} → ${getDateKey(latest)})</div><div style="font-size:0.9rem">投資總額 <b style="color:${clr(dV)}">${sign(dV)}</b> 萬 ＝ ${src} <b>${inflow.toFixed(1)}</b> + 市值損益 <b style="color:${clr(pnl)}">${sign(pnl)}</b> 萬</div></div>`;
   }
   // 前五大持股(raw 市值)
   const usd = latest.usdtwd||32, val={};
@@ -1767,13 +1774,11 @@ function renderHoldingTables(latest) {
   const us = latest.longPoolUS || {};
   const cb = db.costBasis || {};
   
-  // Helper to calculate return
-  const calcReturn = (marketVal, costBasis, shares) => {
-    if (!costBasis || costBasis <= 0 || !shares || shares <= 0) return null;
-    const totalCost = costBasis * shares;
-    const gain = marketVal - totalCost;
-    const pct = (gain / totalCost) * 100;
-    return { gain, pct };
+  // 報酬 = 市值 − 累計投入成本(同單位:台股 萬 / 美股 USD)
+  const calcReturn = (marketVal, cost) => {
+    if (!cost || cost <= 0) return null;
+    const gain = marketVal - cost;
+    return { gain, pct: gain / cost * 100 };
   };
   
   // Format return HTML
@@ -1888,8 +1893,7 @@ function renderHoldingTables(latest) {
     <thead><tr><th>標的</th><th class="num">市值（萬）</th><th class="num">報酬率</th></tr></thead>
     <tbody>
       ${twStocks.map(s => {
-        const shares = getShares(s.symbol, s.val, 'TW');
-        const ret = shares ? calcReturn(s.val * 10000, cb[s.symbol], shares) : null;
+        const ret = calcReturn(s.val, cb[s.symbol]);
         return `<tr>
           <td>${s.name}</td>
           <td class="num">${(s.val||0).toFixed(1)}</td>
@@ -1915,8 +1919,7 @@ function renderHoldingTables(latest) {
     <thead><tr><th>標的</th><th class="num">美元</th><th class="num">台幣（萬）</th><th class="num">報酬率</th></tr></thead>
     <tbody>
       ${usStocks.map(s => {
-        const shares = getShares(s.symbol, s.val, 'US');
-        const ret = shares ? calcReturn(s.val, cb[s.symbol], shares) : null;
+        const ret = calcReturn(s.val, cb[s.symbol]);
         return `<tr>
           <td>${s.name}</td>
           <td class="num">${(s.val||0).toLocaleString()}</td>
@@ -2081,6 +2084,7 @@ function saveSnapshot() {
     longCashUsd: cashUsd, // 美元現金
     longCashUsdTwd: cashUsdTwd, // 美元現金換算台幣
     usdtwd: usdtwd,
+    cost: { ...db.costBasis }, // 蓋章:當下各標的累計投入成本(供日後拆解投入 vs 市值損益)
   };
   
   const idx = db.snapshots.findIndex(s=>s.date===date);
@@ -2177,14 +2181,14 @@ function renderCostBasisGrid() {
   const usStocks = ['VTI', 'QQQ', 'VPL', 'VGK', 'TSLA', 'TSM', 'NVDA', 'VWO', 'BRK.B'];
   
   grid.innerHTML = `
-    <div style="grid-column: 1/-1;font-size:0.8rem;color:var(--muted);margin-bottom:0.5rem">台股成本（每股）</div>
+    <div style="grid-column: 1/-1;font-size:0.8rem;color:var(--muted);margin-bottom:0.5rem">台股累計投入（萬）</div>
     ${twStocks.map(s => `
       <div class="input-group">
         <label>${s} ${STOCK_DEFS[s]?.name || ''}</label>
         <input type="number" id="cb-${s}" value="${cb[s] || ''}" step="0.01" placeholder="0">
       </div>
     `).join('')}
-    <div style="grid-column: 1/-1;font-size:0.8rem;color:var(--muted);margin:1rem 0 0.5rem">美股成本（每股 USD）</div>
+    <div style="grid-column: 1/-1;font-size:0.8rem;color:var(--muted);margin:1rem 0 0.5rem">美股累計投入（USD）</div>
     ${usStocks.map(s => `
       <div class="input-group">
         <label>${s} ${STOCK_DEFS[s]?.name || ''}</label>
@@ -2309,20 +2313,11 @@ function renderStockAnalysis() {
   const invest = c.invest || 1;
   const cb = db.costBasis || {};
 
-  // 反推股數 + 報酬率（與總覽持股表同邏輯）
-  const priceOf = (symbol) => cachedPrices[symbol]?.price || db.prices?.[symbol]?.price || null;
+  // 報酬率 = (市值 − 累計投入)/累計投入(同單位:台股 萬 / 美股 USD)
   const returnPct = (symbol, market, valTwd, valUsd) => {
-    const price = priceOf(symbol);
-    const basis = cb[symbol];
-    if (!price || !basis || basis <= 0) return null;
-    if (market === 'TW') {
-      const mv = valTwd * 10000;     // NTD
-      const cost = basis * (mv / price);
-      return cost > 0 ? (mv - cost) / cost * 100 : null;
-    } else {
-      const cost = basis * (valUsd / price); // USD
-      return cost > 0 ? (valUsd - cost) / cost * 100 : null;
-    }
+    const cost = cb[symbol];
+    if (!cost || cost <= 0) return null;
+    return market === 'TW' ? (valTwd - cost) / cost * 100 : (valUsd - cost) / cost * 100;
   };
 
   // 依標的彙總市值（同一檔跨短/長池合併）
