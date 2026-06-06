@@ -818,6 +818,20 @@ const STOCK_DEFS = {
   'BRK.B': { name: '波克夏 B', market: 'US', tsmcWeight: 0, techWeight: 0 },
 };
 
+// STOCK_DEFS 權重的估計基準季;指數成分會漂(0050 台積電含量已 0.50→0.61),每季校正後更新此值(SOP §6)。
+const STOCK_DEFS_AS_OF = '2026-Q2';
+// 比對當前季別:跨季即視為過期(複用 app 既有 news/KPI freshness 降級的同套思路)。
+function stockDefsFreshness() {
+  const m = /^(\d{4})-Q([1-4])$/.exec(STOCK_DEFS_AS_OF);
+  if (!m) return { label: STOCK_DEFS_AS_OF, stale: false, curLabel: '' };
+  const baseY = +m[1], baseQ = +m[2];
+  const now = new Date();
+  const curY = now.getFullYear();
+  const curQ = Math.floor(now.getMonth() / 3) + 1;
+  const stale = (curY * 4 + curQ) > (baseY * 4 + baseQ);
+  return { label: STOCK_DEFS_AS_OF, stale, curLabel: `${curY}-Q${curQ}` };
+}
+
 // ETF 穿透含量表(單一標的的 ETF 內含,用於「真實單一曝險」;StOCK_DEFS 已涵蓋台積電/科技聚合,此處補單一個股重疊如 QQQ 內含 NVDA)
 const LOOKTHROUGH = {
   'QQQ': { 'NVDA': 0.10 },
@@ -2311,7 +2325,13 @@ function renderStockAnalysis() {
     `台積電曝險 <b style="color:${cClr(tsmcPct,tsmcLimit)}">${tsmcPct.toFixed(1)}%</b> <span style="color:var(--muted)">/ ${tsmcLimit}%</span>` +
     ` ｜ 科技曝險 <b style="color:${cClr(techPct,techLimit)}">${techPct.toFixed(1)}%</b> <span style="color:var(--muted)">/ ${techLimit}%</span>` +
     ` ｜ <span style="color:var(--muted)">NVDA 真實 ${effW.nvdaEffPct.toFixed(1)}%(含 QQQ 穿透)</span>` +
-    (residual > 0.5 ? ` ｜ <span style="color:var(--warn)">未分類 ${residual.toFixed(0)} 萬(集中度假設其為非台積電/低科技;若含權值股請補個股明細)</span>` : '');
+    (residual > 0.5 ? ` ｜ <span style="color:var(--warn)">未分類 ${residual.toFixed(0)} 萬(集中度假設其為非台積電/低科技;若含權值股請補個股明細)</span>` : '') +
+    (() => {
+      const f = stockDefsFreshness();
+      return f.stale
+        ? ` ｜ <span style="color:var(--warn)" title="STOCK_DEFS 的 tsmcWeight/techWeight 是手估值,指數成分每季漂移;請依 SOP §6 校正後更新 STOCK_DEFS_AS_OF">⚠️ 權重估計 ${f.label},已跨季(現 ${f.curLabel}),建議校正</span>`
+        : ` ｜ <span style="color:var(--muted)" title="集中度用的 tsmcWeight/techWeight 估計基準季;每季校正">權重基準 ${f.label}</span>`;
+    })();
 
   const fmtRet = (r) => r === null ? '<span style="color:var(--muted)">—</span>' :
     `<span style="color:${r>=0?'var(--ok)':'var(--danger)'}">${r>=0?'+':''}${r.toFixed(1)}%</span>`;
