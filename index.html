@@ -1846,6 +1846,7 @@ function renderHoldingTables(latest) {
           <td class="num">${fmtReturn(ret)}</td>
         </tr>`;
       }).join('')}
+      ${(() => { const resid = (tw.total||0) - twStocks.reduce((a,s)=>a+(s.val||0),0); return resid > 0.5 ? `<tr><td style="color:var(--muted)">其他(未填明細)</td><td class="num" style="color:var(--muted)">${resid.toFixed(1)}</td><td class="num">—</td></tr>` : ''; })()}
     </tbody>`;
   
   // ===== 長期池美股表格 =====
@@ -1873,6 +1874,7 @@ function renderHoldingTables(latest) {
           <td class="num">${fmtReturn(ret)}</td>
         </tr>`;
       }).join('')}
+      ${(() => { const usTotUsd = us.totalUsd || (us.total ? us.total*10000/usd : 0); const resid = usTotUsd - usStocks.reduce((a,s)=>a+(s.val||0),0); return resid > 50 ? `<tr><td style="color:var(--muted)">其他(未填明細)</td><td class="num" style="color:var(--muted)">${Math.round(resid).toLocaleString()}</td><td class="num" style="color:var(--muted)">${(resid*usd/10000).toFixed(1)}</td><td class="num">—</td></tr>` : ''; })()}
     </tbody>`;
 }
 
@@ -2291,6 +2293,9 @@ function renderStockAnalysis() {
     };
   });
   cashItems.forEach(ci => rows.push({ symbol: null, name: ci.name, val: ci.val, market: 'CASH', ret: null, tsmc: 0, tech: 0, isStock: false }));
+  // 未分類餘額(投資總額 − 已填個股/現金):你習慣填合計+部分個股,差額在此呈現,讓榜加總=投資總額
+  const residual = invest - rows.reduce((a,r)=>a+(r.val||0), 0);
+  if (residual > 0.5) rows.push({ symbol: null, name: '其他(未填明細)', val: residual, market: 'OTHER', ret: null, tsmc: 0, tech: 0, isStock: false });
   rows.sort((a,b) => b.val - a.val);
 
   const totalTsmc = rows.reduce((a,r)=>a+r.tsmc, 0);
@@ -2305,7 +2310,8 @@ function renderStockAnalysis() {
   document.getElementById('stock-conc-summary').innerHTML =
     `台積電曝險 <b style="color:${cClr(tsmcPct,tsmcLimit)}">${tsmcPct.toFixed(1)}%</b> <span style="color:var(--muted)">/ ${tsmcLimit}%</span>` +
     ` ｜ 科技曝險 <b style="color:${cClr(techPct,techLimit)}">${techPct.toFixed(1)}%</b> <span style="color:var(--muted)">/ ${techLimit}%</span>` +
-    ` ｜ <span style="color:var(--muted)">NVDA 真實 ${effW.nvdaEffPct.toFixed(1)}%(含 QQQ 穿透)</span>`;
+    ` ｜ <span style="color:var(--muted)">NVDA 真實 ${effW.nvdaEffPct.toFixed(1)}%(含 QQQ 穿透)</span>` +
+    (residual > 0.5 ? ` ｜ <span style="color:var(--warn)">未分類 ${residual.toFixed(0)} 萬(集中度假設其為非台積電/低科技;若含權值股請補個股明細)</span>` : '');
 
   const fmtRet = (r) => r === null ? '<span style="color:var(--muted)">—</span>' :
     `<span style="color:${r>=0?'var(--ok)':'var(--danger)'}">${r>=0?'+':''}${r.toFixed(1)}%</span>`;
