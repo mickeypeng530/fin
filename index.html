@@ -805,7 +805,7 @@
     </div>
 
     <div class="settings-group">
-      <h3>集中度上限</h3>
+      <h3>風控上限（集中度 / 現金流）</h3>
       <div class="settings-grid">
         <div class="input-group">
           <label>台積電曝險上限（%）</label>
@@ -814,6 +814,10 @@
         <div class="input-group">
           <label>科技曝險上限（%）</label>
           <input type="number" id="cfg-tech-limit" step="1" value="45">
+        </div>
+        <div class="input-group">
+          <label>準備金下限（萬，0=停用現金流鎖）</label>
+          <input type="number" id="cfg-reserve-floor" step="1" value="0">
         </div>
       </div>
     </div>
@@ -867,27 +871,29 @@ const STOCK_DEFS = {
   '2330': { name: '台積電', market: 'TW', tsmcWeight: 1.0, techWeight: 1.0 },
   '2646': { name: '星宇航空', market: 'TW', tsmcWeight: 0, techWeight: 0 },
   // US stocks
-  'VTI': { name: 'Vanguard Total Stock', market: 'US', tsmcWeight: 0, techWeight: 0.30 },
-  'QQQ': { name: 'Nasdaq 100', market: 'US', tsmcWeight: 0.02, techWeight: 0.55 },
-  'VPL': { name: 'Vanguard Pacific', market: 'US', tsmcWeight: 0.05, techWeight: 0.20 },
-  'VGK': { name: 'Vanguard Europe', market: 'US', tsmcWeight: 0, techWeight: 0.15 },
-  'TSLA': { name: 'Tesla', market: 'US', tsmcWeight: 0, techWeight: 1.0 },
-  'TSM': { name: '台積電 ADR', market: 'US', tsmcWeight: 1.0, techWeight: 1.0 },
-  'NVDA': { name: 'NVIDIA', market: 'US', tsmcWeight: 0, techWeight: 1.0 },
-  'VWO': { name: 'Vanguard Emerging', market: 'US', tsmcWeight: 0.13, techWeight: 0.25 },
-  'BRK.B': { name: '波克夏 B', market: 'US', tsmcWeight: 0, techWeight: 0 },
-  'AAPL': { name: 'Apple', market: 'US', tsmcWeight: 0, techWeight: 1.0 },
-  'GOOGL': { name: 'Alphabet', market: 'US', tsmcWeight: 0, techWeight: 1.0 },
-  'VEA': { name: 'Vanguard 成熟市場(除美)', market: 'US', tsmcWeight: 0, techWeight: 0.15 },
-  'ARKK': { name: '方舟創新', market: 'US', tsmcWeight: 0, techWeight: 0.85 },
-  'IBIT': { name: 'iShares 比特幣', market: 'US', tsmcWeight: 0, techWeight: 0 },
-  'ONDS': { name: 'Ondas(無人機)', market: 'US', tsmcWeight: 0, techWeight: 1.0 },
-  'IEI': { name: 'iShares 3-7年美債', market: 'US', tsmcWeight: 0, techWeight: 0 },
-  'ARKG': { name: '方舟基因體', market: 'US', tsmcWeight: 0, techWeight: 0.20 },
-  'FCX': { name: 'Freeport 銅礦', market: 'US', tsmcWeight: 0, techWeight: 0 },
-  'DIS': { name: 'Disney', market: 'US', tsmcWeight: 0, techWeight: 0 },
-  'SRTA': { name: 'SRTA(待確認)', market: 'US', tsmcWeight: 0, techWeight: 0 },
-  'ARKX': { name: '方舟太空', market: 'US', tsmcWeight: 0, techWeight: 0.40 },
+  // cls = 資產類別(組合閘門 gate 4 用):broad=寬基/區域分散 ETF(增倉首選候選)、bond=債券(可增·防禦)、
+  //       stock=個股、theme=主題 ETF、alt=另類(crypto 等) — 後三類不列增倉建議,落回 conviction 排序
+  'VTI': { name: 'Vanguard Total Stock', market: 'US', tsmcWeight: 0, techWeight: 0.30, cls: 'broad' },
+  'QQQ': { name: 'Nasdaq 100', market: 'US', tsmcWeight: 0.02, techWeight: 0.55, cls: 'broad' },
+  'VPL': { name: 'Vanguard Pacific', market: 'US', tsmcWeight: 0.05, techWeight: 0.20, cls: 'broad' },
+  'VGK': { name: 'Vanguard Europe', market: 'US', tsmcWeight: 0, techWeight: 0.15, cls: 'broad' },
+  'TSLA': { name: 'Tesla', market: 'US', tsmcWeight: 0, techWeight: 1.0, cls: 'stock' },
+  'TSM': { name: '台積電 ADR', market: 'US', tsmcWeight: 1.0, techWeight: 1.0, cls: 'stock' },
+  'NVDA': { name: 'NVIDIA', market: 'US', tsmcWeight: 0, techWeight: 1.0, cls: 'stock' },
+  'VWO': { name: 'Vanguard Emerging', market: 'US', tsmcWeight: 0.13, techWeight: 0.25, cls: 'broad' },
+  'BRK.B': { name: '波克夏 B', market: 'US', tsmcWeight: 0, techWeight: 0, cls: 'stock' },
+  'AAPL': { name: 'Apple', market: 'US', tsmcWeight: 0, techWeight: 1.0, cls: 'stock' },
+  'GOOGL': { name: 'Alphabet', market: 'US', tsmcWeight: 0, techWeight: 1.0, cls: 'stock' },
+  'VEA': { name: 'Vanguard 成熟市場(除美)', market: 'US', tsmcWeight: 0, techWeight: 0.15, cls: 'broad' },
+  'ARKK': { name: '方舟創新', market: 'US', tsmcWeight: 0, techWeight: 0.85, cls: 'theme' },
+  'IBIT': { name: 'iShares 比特幣', market: 'US', tsmcWeight: 0, techWeight: 0, cls: 'alt' },
+  'ONDS': { name: 'Ondas(無人機)', market: 'US', tsmcWeight: 0, techWeight: 1.0, cls: 'stock' },
+  'IEI': { name: 'iShares 3-7年美債', market: 'US', tsmcWeight: 0, techWeight: 0, cls: 'bond' },
+  'ARKG': { name: '方舟基因體', market: 'US', tsmcWeight: 0, techWeight: 0.20, cls: 'theme' },
+  'FCX': { name: 'Freeport 銅礦', market: 'US', tsmcWeight: 0, techWeight: 0, cls: 'stock' },
+  'DIS': { name: 'Disney', market: 'US', tsmcWeight: 0, techWeight: 0, cls: 'stock' },
+  'SRTA': { name: 'SRTA(待確認)', market: 'US', tsmcWeight: 0, techWeight: 0, cls: 'stock' },
+  'ARKX': { name: '方舟太空', market: 'US', tsmcWeight: 0, techWeight: 0.40, cls: 'theme' },
 };
 
 // 美股 snapshot key → symbol 的單一對照表(輸入欄 id = in-us-<key>、cost key 同名)。
@@ -1324,6 +1330,10 @@ function calcPortfolioActions(s) {
   const usUnder = usPct < 30;    // 目標 30-35%
   const has0050 = (s.longPoolTW?.tw50 || 0) > 0;
   const has006208 = (s.longPoolTW?.fb50 || 0) > 0 || (s.shortPool?.fubong50 || 0) > 0;
+  // gate 0 現金流硬鎖:準備金跌破下限 → 所有「增」鎖成持有(reserveFloor=0 表示停用)
+  const reserveFloor = db.settings.reserveFloor || 0;
+  const cashLock = reserveFloor > 0 && (s.reserve || 0) < reserveFloor
+    ? `現金流硬鎖:準備金 ${(s.reserve || 0).toFixed(0)} 萬 < 下限 ${reserveFloor} 萬,新資金先補準備金` : '';
   const sa = db.stockAnalysis?.stocks || {};
   const out = {};
   const decide = (sym, market) => {
@@ -1332,21 +1342,26 @@ function calcPortfolioActions(s) {
     const isTsmc = (def.tsmcWeight || 0) >= 0.5 || sym === 'TSM';
     const isTech = (def.techWeight || 0) >= 0.55;
     const conv = sa[sym]?.conviction;
+    const cls = def.cls || 'stock';
     let action, reason;
     if (isTsmc && conc.tsmc > tsmcLimit) {
       action = '封頂·只減不加'; reason = `台積電曝險 ${conc.tsmc.toFixed(0)}% > 上限 ${tsmcLimit}%,此標的是主要貢獻者`;
     } else if (isTech && conc.tech > techLimit) {
       action = '類別只減不加'; reason = `科技曝險 ${conc.tech.toFixed(0)}% > 上限 ${techLimit}%`;
-    } else if (market === 'US' && !isTech && (def.tsmcWeight || 0) < 0.1 && usUnder) {
-      action = '增倉首選'; reason = `美股低配 ${usPct.toFixed(0)}% < 目標 30-35%,且非科技(降集中)`;
+    } else if (market === 'US' && !isTech && (def.tsmcWeight || 0) < 0.1 && usUnder && (cls === 'broad' || cls === 'bond')) {
+      // gate 4 配置缺口:只有寬基/區域分散 ETF 列增倉首選、債券列可增(防禦);個股/主題/另類落回 conviction
+      if (cashLock) { action = '持有(現金流鎖)'; reason = cashLock; }
+      else if (cls === 'broad') { action = '增倉首選'; reason = `美股低配 ${usPct.toFixed(0)}% < 目標 30-35%,寬基/區域分散 ETF(降集中首選)`; }
+      else { action = '可增(防禦)'; reason = `美股低配 ${usPct.toFixed(0)}%,債券部位增加抗波動(非分散首選)`; }
     } else if (market === 'TW' && twOver) {
       action = '持有'; reason = `台股已超配 ${twPct.toFixed(0)}% > 70%,不再加碼`;
     } else if (conv === 'high') {
-      action = '可增'; reason = '未踩上限、個股信心高';
+      if (cashLock) { action = '持有(現金流鎖)'; reason = cashLock; }
+      else { action = '可增'; reason = '未踩上限、個股信心高'; }
     } else if (conv === 'low') {
       action = '減'; reason = '個股信心低';
     } else {
-      action = '持有'; reason = '未踩上限';
+      action = '持有'; reason = cls === 'alt' || cls === 'theme' ? '未踩上限;另類/主題部位不列增倉建議(衛星倉)' : '未踩上限';
     }
     let overlap = '';
     if (sym === '006208' && has0050) overlap = '與 0050 同指數 → 可擇一出清去重';
@@ -2179,6 +2194,7 @@ function renderSettings() {
   document.getElementById('cfg-goal-retire').value = s.goals.retire?.amount || 6000;
   document.getElementById('cfg-tsmc-limit').value = s.tsmcLimit || 40;
   document.getElementById('cfg-tech-limit').value = s.techLimit || 45;
+  document.getElementById('cfg-reserve-floor').value = s.reserveFloor || 0;
 }
 
 function saveSettings() {
@@ -2195,6 +2211,7 @@ function saveSettings() {
     },
     tsmcLimit: +document.getElementById('cfg-tsmc-limit').value,
     techLimit: +document.getElementById('cfg-tech-limit').value,
+    reserveFloor: +document.getElementById('cfg-reserve-floor').value || 0,
   };
   markUnsaved();
   showToast('設定已更新（記得儲存檔案）');
