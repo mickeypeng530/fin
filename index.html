@@ -1311,7 +1311,8 @@ function calcPortfolioActions(s) {
   const techLimit = db.settings.techLimit || 45;
   const twTotal = s.longPoolTW?.total || 0;
   const usTotal = s.longPoolUS?.total || 0;
-  const longTotal = twTotal + usTotal + (s.longCash || 0);
+  const cashTwd = (s.longCash || 0) + (s.longCashUsdTwd || (s.longCashUsd || 0) * (s.usdtwd || 32) / 10000);
+  const longTotal = twTotal + usTotal + cashTwd;
   const twPct = longTotal > 0 ? twTotal / longTotal * 100 : 0;
   const usPct = longTotal > 0 ? usTotal / longTotal * 100 : 0;
   const twOver = twPct > 70;     // 目標 60-70%
