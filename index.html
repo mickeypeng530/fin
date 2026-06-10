@@ -565,6 +565,66 @@
           <input type="number" id="in-us-brkb" placeholder="0" step="1" data-stock="BRK.B" data-market="US">
           <div class="price-info" id="price-us-brkb"></div>
         </div>
+        <div class="input-group">
+          <label>AAPL</label>
+          <input type="number" id="in-us-aapl" placeholder="0" step="1" data-stock="AAPL" data-market="US">
+          <div class="price-info" id="price-us-aapl"></div>
+        </div>
+        <div class="input-group">
+          <label>GOOGL</label>
+          <input type="number" id="in-us-googl" placeholder="0" step="1" data-stock="GOOGL" data-market="US">
+          <div class="price-info" id="price-us-googl"></div>
+        </div>
+        <div class="input-group">
+          <label>VEA</label>
+          <input type="number" id="in-us-vea" placeholder="0" step="1" data-stock="VEA" data-market="US">
+          <div class="price-info" id="price-us-vea"></div>
+        </div>
+        <div class="input-group">
+          <label>ARKK</label>
+          <input type="number" id="in-us-arkk" placeholder="0" step="1" data-stock="ARKK" data-market="US">
+          <div class="price-info" id="price-us-arkk"></div>
+        </div>
+        <div class="input-group">
+          <label>IBIT</label>
+          <input type="number" id="in-us-ibit" placeholder="0" step="1" data-stock="IBIT" data-market="US">
+          <div class="price-info" id="price-us-ibit"></div>
+        </div>
+        <div class="input-group">
+          <label>ONDS</label>
+          <input type="number" id="in-us-onds" placeholder="0" step="1" data-stock="ONDS" data-market="US">
+          <div class="price-info" id="price-us-onds"></div>
+        </div>
+        <div class="input-group">
+          <label>IEI</label>
+          <input type="number" id="in-us-iei" placeholder="0" step="1" data-stock="IEI" data-market="US">
+          <div class="price-info" id="price-us-iei"></div>
+        </div>
+        <div class="input-group">
+          <label>ARKG</label>
+          <input type="number" id="in-us-arkg" placeholder="0" step="1" data-stock="ARKG" data-market="US">
+          <div class="price-info" id="price-us-arkg"></div>
+        </div>
+        <div class="input-group">
+          <label>FCX</label>
+          <input type="number" id="in-us-fcx" placeholder="0" step="1" data-stock="FCX" data-market="US">
+          <div class="price-info" id="price-us-fcx"></div>
+        </div>
+        <div class="input-group">
+          <label>DIS</label>
+          <input type="number" id="in-us-dis" placeholder="0" step="1" data-stock="DIS" data-market="US">
+          <div class="price-info" id="price-us-dis"></div>
+        </div>
+        <div class="input-group">
+          <label>SRTA</label>
+          <input type="number" id="in-us-srta" placeholder="0" step="1" data-stock="SRTA" data-market="US">
+          <div class="price-info" id="price-us-srta"></div>
+        </div>
+        <div class="input-group">
+          <label>ARKX</label>
+          <input type="number" id="in-us-arkx" placeholder="0" step="1" data-stock="ARKX" data-market="US">
+          <div class="price-info" id="price-us-arkx"></div>
+        </div>
       </div>
     </div>
 
@@ -816,6 +876,26 @@ const STOCK_DEFS = {
   'NVDA': { name: 'NVIDIA', market: 'US', tsmcWeight: 0, techWeight: 1.0 },
   'VWO': { name: 'Vanguard Emerging', market: 'US', tsmcWeight: 0.13, techWeight: 0.25 },
   'BRK.B': { name: '波克夏 B', market: 'US', tsmcWeight: 0, techWeight: 0 },
+  'AAPL': { name: 'Apple', market: 'US', tsmcWeight: 0, techWeight: 1.0 },
+  'GOOGL': { name: 'Alphabet', market: 'US', tsmcWeight: 0, techWeight: 1.0 },
+  'VEA': { name: 'Vanguard 成熟市場(除美)', market: 'US', tsmcWeight: 0, techWeight: 0.15 },
+  'ARKK': { name: '方舟創新', market: 'US', tsmcWeight: 0, techWeight: 0.85 },
+  'IBIT': { name: 'iShares 比特幣', market: 'US', tsmcWeight: 0, techWeight: 0 },
+  'ONDS': { name: 'Ondas(無人機)', market: 'US', tsmcWeight: 0, techWeight: 1.0 },
+  'IEI': { name: 'iShares 3-7年美債', market: 'US', tsmcWeight: 0, techWeight: 0 },
+  'ARKG': { name: '方舟基因體', market: 'US', tsmcWeight: 0, techWeight: 0.20 },
+  'FCX': { name: 'Freeport 銅礦', market: 'US', tsmcWeight: 0, techWeight: 0 },
+  'DIS': { name: 'Disney', market: 'US', tsmcWeight: 0, techWeight: 0 },
+  'SRTA': { name: 'SRTA(待確認)', market: 'US', tsmcWeight: 0, techWeight: 0 },
+  'ARKX': { name: '方舟太空', market: 'US', tsmcWeight: 0, techWeight: 0.40 },
+};
+
+// 美股 snapshot key → symbol 的單一對照表(輸入欄 id = in-us-<key>、cost key 同名)。
+// 集中度/穿透/組合動作/績效/排行/歷史明細全部引用這份,避免多處 usMap 漂移。
+const US_KEYS = {
+  vti:'VTI', qqq:'QQQ', vpl:'VPL', vgk:'VGK', tsla:'TSLA', tsm:'TSM', nvda:'NVDA', vwo:'VWO', brkb:'BRK.B',
+  aapl:'AAPL', googl:'GOOGL', vea:'VEA', arkk:'ARKK', ibit:'IBIT', onds:'ONDS', iei:'IEI', arkg:'ARKG',
+  fcx:'FCX', dis:'DIS', srta:'SRTA', arkx:'ARKX',
 };
 
 // STOCK_DEFS 權重的估計基準季;指數成分會漂(0050 台積電含量已 0.50→0.61),每季校正後更新此值(SOP §6)。
@@ -871,7 +951,7 @@ function emptyCost() {
   return {
     short: { fubong50: 0, b00720b: 0 },
     tw: { tw50: 0, fb50: 0, n0056: 0, n00929: 0, n00955: 0, n2330: 0, n2646: 0, b00720b: 0 },
-    us: { vti: 0, qqq: 0, vpl: 0, vgk: 0, tsla: 0, tsm: 0, nvda: 0, vwo: 0, brkb: 0 },
+    us: Object.keys(US_KEYS).reduce((o, k) => (o[k] = 0, o), {}),
   };
 }
 function loadCost(loaded) {
@@ -884,8 +964,7 @@ const COST_KEYS = {
   '0050':[['tw','tw50']], '006208':[['short','fubong50'],['tw','fb50']], '0056':[['tw','n0056']],
   '00929':[['tw','n00929']], '00955':[['tw','n00955']], '2330':[['tw','n2330']], '2646':[['tw','n2646']],
   '00720B':[['short','b00720b'],['tw','b00720b']],
-  'VTI':[['us','vti']], 'QQQ':[['us','qqq']], 'VPL':[['us','vpl']], 'VGK':[['us','vgk']],
-  'TSLA':[['us','tsla']], 'TSM':[['us','tsm']], 'NVDA':[['us','nvda']], 'VWO':[['us','vwo']], 'BRK.B':[['us','brkb']],
+  ...Object.fromEntries(Object.entries(US_KEYS).map(([k, sym]) => [sym, [['us', k]]])),
 };
 function symbolCost(symbol) {
   const c = db.cost || {};
@@ -1182,19 +1261,7 @@ function calcConcentration(s) {
   }
   
   // US stocks
-  const usMap = {
-    vti: 'VTI',
-    qqq: 'QQQ',
-    vpl: 'VPL',
-    vgk: 'VGK',
-    tsla: 'TSLA',
-    tsm: 'TSM',
-    nvda: 'NVDA',
-    vwo: 'VWO',
-    brkb: 'BRK.B',
-  };
-  
-  for (const [key, symbol] of Object.entries(usMap)) {
+  for (const [key, symbol] of Object.entries(US_KEYS)) {
     const valUsd = s.longPoolUS?.[key] || 0;
     const valTwd = valUsd * usd / 10000; // Convert to 萬
     const def = STOCK_DEFS[symbol];
@@ -1226,8 +1293,7 @@ function calcEffectiveWeights(s) {
   for (const [k, sym] of Object.entries(twMap)) add(sym, s.longPoolTW?.[k] || 0);
   add('006208', s.shortPool?.fubong50 || 0);
   add('00720B', s.shortPool?.b00720b || 0);
-  const usMap = { vti:'VTI', qqq:'QQQ', vpl:'VPL', vgk:'VGK', tsla:'TSLA', tsm:'TSM', nvda:'NVDA', vwo:'VWO', brkb:'BRK.B' };
-  for (const [k, sym] of Object.entries(usMap)) add(sym, (s.longPoolUS?.[k] || 0) * usd / 10000);
+  for (const [k, sym] of Object.entries(US_KEYS)) add(sym, (s.longPoolUS?.[k] || 0) * usd / 10000);
   const effVal = (target) => {
     let t = val[target] || 0;
     for (const [etf, holds] of Object.entries(LOOKTHROUGH)) {
@@ -1287,8 +1353,7 @@ function calcPortfolioActions(s) {
   const twMap = { tw50:'0050', fb50:'006208', n0056:'0056', n00929:'00929', n00955:'00955', n2330:'2330', n2646:'2646', b00720b:'00720B' };
   for (const [k, sym] of Object.entries(twMap)) if ((s.longPoolTW?.[k] || 0) > 0) decide(sym, 'TW');
   if ((s.shortPool?.fubong50 || 0) > 0) decide('006208', 'TW');
-  const usMap = { vti:'VTI', qqq:'QQQ', vpl:'VPL', vgk:'VGK', tsla:'TSLA', tsm:'TSM', nvda:'NVDA', vwo:'VWO', brkb:'BRK.B' };
-  for (const [k, sym] of Object.entries(usMap)) if ((s.longPoolUS?.[k] || 0) > 0) decide(sym, 'US');
+  for (const [k, sym] of Object.entries(US_KEYS)) if ((s.longPoolUS?.[k] || 0) > 0) decide(sym, 'US');
   return out;
 }
 
@@ -1497,8 +1562,7 @@ function renderPerformance() {
   const twMap={tw50:'0050 台灣50',fb50:'006208 富邦50',n0056:'0056 高股息',n00929:'00929',n00955:'00955 中信日本',n2330:'2330 台積電',n2646:'2646 星宇',b00720b:'00720B'};
   for(const[k,n]of Object.entries(twMap))add(n,latest.longPoolTW?.[k]||0);
   add('006208 富邦50', latest.shortPool?.fubong50||0); add('00720B', latest.shortPool?.b00720b||0);
-  const usMap={vti:'VTI',qqq:'QQQ',vpl:'VPL',vgk:'VGK',tsla:'TSLA',tsm:'TSM',nvda:'NVDA',vwo:'VWO',brkb:'BRK.B'};
-  for(const[k,n]of Object.entries(usMap))add(n,(latest.longPoolUS?.[k]||0)*usd/10000);
+  for(const[k,n]of Object.entries(US_KEYS))add(n,(latest.longPoolUS?.[k]||0)*usd/10000);
   const invest = cL.invest||1;
   const top5 = Object.entries(val).sort((a,b)=>b[1]-a[1]).slice(0,5);
   const top5Html = `<div class="note-label">前五大持股(佔投資總額 ${invest.toFixed(0)} 萬)</div><div style="overflow-x:auto"><table class="note-table"><tbody>${top5.map(([n,v],i)=>`<tr><td>${i+1}. ${n}</td><td class="num">${v.toFixed(1)} 萬</td><td class="num"><b>${(v/invest*100).toFixed(1)}%</b></td></tr>`).join('')}</tbody></table></div>`;
@@ -1874,6 +1938,18 @@ function renderHoldingTables(latest) {
     { name: 'NVDA NVIDIA', key: 'nvda', symbol: 'NVDA', val: us.nvda },
     { name: 'VWO Vanguard 新興市場', key: 'vwo', symbol: 'VWO', val: us.vwo },
     { name: 'BRK.B 波克夏', key: 'brkb', symbol: 'BRK.B', val: us.brkb },
+    { name: 'AAPL Apple', key: 'aapl', symbol: 'AAPL', val: us.aapl },
+    { name: 'GOOGL Alphabet', key: 'googl', symbol: 'GOOGL', val: us.googl },
+    { name: 'VEA Vanguard 成熟市場', key: 'vea', symbol: 'VEA', val: us.vea },
+    { name: 'ARKK 方舟創新', key: 'arkk', symbol: 'ARKK', val: us.arkk },
+    { name: 'IBIT iShares 比特幣', key: 'ibit', symbol: 'IBIT', val: us.ibit },
+    { name: 'ONDS Ondas', key: 'onds', symbol: 'ONDS', val: us.onds },
+    { name: 'IEI iShares 3-7年美債', key: 'iei', symbol: 'IEI', val: us.iei },
+    { name: 'ARKG 方舟基因體', key: 'arkg', symbol: 'ARKG', val: us.arkg },
+    { name: 'FCX Freeport 銅礦', key: 'fcx', symbol: 'FCX', val: us.fcx },
+    { name: 'DIS Disney', key: 'dis', symbol: 'DIS', val: us.dis },
+    { name: 'SRTA', key: 'srta', symbol: 'SRTA', val: us.srta },
+    { name: 'ARKX 方舟太空', key: 'arkx', symbol: 'ARKX', val: us.arkx },
   ].filter(s => s.val > 0);
   
   document.getElementById('table-us').innerHTML = `
@@ -1924,7 +2000,7 @@ function renderHistory() {
           </div>
           <div>
             <div style="font-weight:600;margin-bottom:0.4rem;color:var(--accent)">長期池美股 <span style="font-weight:400;color:var(--muted)">(USD→TWD: ${usd})</span></div>
-            ${Object.entries({VTI:us.vti,QQQ:us.qqq,VPL:us.vpl,VGK:us.vgk,TSLA:us.tsla,TSM:us.tsm,NVDA:us.nvda,VWO:us.vwo})
+            ${Object.entries(US_KEYS).filter(([k])=>(us[k]||0)>0).map(([k,sym])=>[sym,us[k]])
               .map(([k,v])=>`<div style="display:flex;justify-content:space-between"><span>${k}</span><span>$${(v||0).toLocaleString()}</span></div>`).join('')}
             <div style="display:flex;justify-content:space-between;margin-top:0.3rem;padding-top:0.3rem;border-top:1px solid var(--border)"><span>現金</span><span>${(s.longCash||0).toFixed(1)} 萬</span></div>
           </div>
@@ -2029,19 +2105,9 @@ function saveSnapshot() {
       n2646: +document.getElementById('in-lt-2646').value || 0,
       b00720b: +document.getElementById('in-lt-00720b').value || 0,
     },
-    longPoolUS: {
-      total: usTwd, // 萬台幣
-      totalUsd: usUsd, // 美元（記錄用）
-      vti: +document.getElementById('in-us-vti').value || 0,
-      qqq: +document.getElementById('in-us-qqq').value || 0,
-      vpl: +document.getElementById('in-us-vpl').value || 0,
-      vgk: +document.getElementById('in-us-vgk').value || 0,
-      tsla: +document.getElementById('in-us-tsla').value || 0,
-      tsm: +document.getElementById('in-us-tsm').value || 0,
-      nvda: +document.getElementById('in-us-nvda').value || 0,
-      vwo: +document.getElementById('in-us-vwo').value || 0,
-      brkb: +document.getElementById('in-us-brkb').value || 0,
-    },
+    longPoolUS: Object.keys(US_KEYS).reduce((o, k) => {
+      o[k] = +document.getElementById('in-us-' + k).value || 0; return o;
+    }, { total: usTwd /* 萬台幣 */, totalUsd: usUsd /* 美元（記錄用） */ }),
     longCash: +document.getElementById('in-lt-cash').value || 0,
     longCashUsd: cashUsd, // 美元現金
     longCashUsdTwd: cashUsdTwd, // 美元現金換算台幣
@@ -2081,15 +2147,7 @@ function loadLatestToForm() {
     usUsd = s.longPoolUS.total * 10000 / usdtwd; // 從萬台幣反算美元
   }
   document.getElementById('in-lt-us-usd').value = usUsd || '';
-  document.getElementById('in-us-vti').value = s.longPoolUS?.vti||'';
-  document.getElementById('in-us-qqq').value = s.longPoolUS?.qqq||'';
-  document.getElementById('in-us-vpl').value = s.longPoolUS?.vpl||'';
-  document.getElementById('in-us-vgk').value = s.longPoolUS?.vgk||'';
-  document.getElementById('in-us-tsla').value = s.longPoolUS?.tsla||'';
-  document.getElementById('in-us-tsm').value = s.longPoolUS?.tsm||'';
-  document.getElementById('in-us-nvda').value = s.longPoolUS?.nvda||'';
-  document.getElementById('in-us-vwo').value = s.longPoolUS?.vwo||'';
-  document.getElementById('in-us-brkb').value = s.longPoolUS?.brkb||'';
+  for (const k of Object.keys(US_KEYS)) { const el = document.getElementById('in-us-' + k); if (el) el.value = s.longPoolUS?.[k] || ''; }
   document.getElementById('in-lt-cash').value = s.longCash||'';
   document.getElementById('in-lt-cash-usd').value = s.longCashUsd||'';
   document.getElementById('in-usdtwd').value = usdtwd;
@@ -2138,7 +2196,7 @@ function saveSettings() {
 const COST_GRID = {
   short: { label: '短中期池（萬）', items: [['fubong50','006208 富邦50'],['b00720b','00720B 投資級債']] },
   tw: { label: '長期池台股（萬）', items: [['tw50','0050 台灣50'],['fb50','006208 富邦50'],['n0056','0056 高股息'],['n00929','00929'],['n00955','00955 中信日本'],['n2330','2330 台積電'],['n2646','2646 星宇'],['b00720b','00720B 投資級債']] },
-  us: { label: '長期池美股（USD）', items: [['vti','VTI'],['qqq','QQQ'],['vpl','VPL'],['vgk','VGK'],['tsla','TSLA'],['tsm','TSM'],['nvda','NVDA'],['vwo','VWO'],['brkb','BRK.B']] },
+  us: { label: '長期池美股（USD）', items: Object.entries(US_KEYS) },
 };
 function renderCostBasisGrid() {
   const grid = document.getElementById('cost-basis-grid');
@@ -2286,8 +2344,7 @@ function renderStockAnalysis() {
   for (const [k,sym] of Object.entries(twMap)) add(sym, latest.longPoolTW?.[k]||0, 'TW');
   add('006208', latest.shortPool?.fubong50||0, 'TW');
   add('00720B', latest.shortPool?.b00720b||0, 'TW');
-  const usMap = { vti:'VTI', qqq:'QQQ', vpl:'VPL', vgk:'VGK', tsla:'TSLA', tsm:'TSM', nvda:'NVDA', vwo:'VWO', brkb:'BRK.B' };
-  for (const [k,sym] of Object.entries(usMap)) { const vUsd = latest.longPoolUS?.[k]||0; add(sym, vUsd*usd/10000, 'US', vUsd); }
+  for (const [k,sym] of Object.entries(US_KEYS)) { const vUsd = latest.longPoolUS?.[k]||0; add(sym, vUsd*usd/10000, 'US', vUsd); }
 
   // 現金類（不做個股分析，但列入權重）
   const cashItems = [
