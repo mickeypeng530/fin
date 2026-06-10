@@ -915,6 +915,7 @@ function stockDefsFreshness() {
 // ETF 穿透含量表(單一標的的 ETF 內含,用於「真實單一曝險」;StOCK_DEFS 已涵蓋台積電/科技聚合,此處補單一個股重疊如 QQQ 內含 NVDA)
 const LOOKTHROUGH = {
   'QQQ': { 'NVDA': 0.10 },
+  'VTI': { 'NVDA': 0.06 },
 };
 
 // ===== DEFAULT DATA =====
@@ -1271,15 +1272,19 @@ function calcConcentration(s) {
     }
   }
 
-  // 防呆:台股個股明細加總遠小於 longPoolTW.total → 曝險被嚴重低估(silent failure)
+  // 防呆:個股明細加總遠小於池合計 → 曝險被嚴重低估(silent failure);台股/美股分開檢查
   const twTotalChk = s.longPoolTW?.total || 0;
   const twIndiv = Object.keys(twMap).reduce((a,k)=>a + (s.longPoolTW?.[k]||0), 0);
   const insufficient = twTotalChk > 0 && twIndiv < twTotalChk * 0.5;
+  const usTotalChk = s.longPoolUS?.totalUsd || 0;
+  const usIndiv = Object.keys(US_KEYS).reduce((a,k)=>a + (s.longPoolUS?.[k]||0), 0);
+  const usInsufficient = usTotalChk > 0 && usIndiv < usTotalChk * 0.5;
 
   return {
     tsmc: (tsmcExposure / totalInvest) * 100,
     tech: (techExposure / totalInvest) * 100,
     insufficient,
+    usInsufficient,
   };
 }
 
@@ -1744,6 +1749,9 @@ function renderConcentrationAlerts(snap) {
 
   if (conc.insufficient) {
     alerts.push({ type: 'warn', title: '⚠️ 集中度可能低估', text: '台股只填了合計、個股明細不足,曝險以個股明細計算會偏低。請至輸入頁補各股市值。' });
+  }
+  if (conc.usInsufficient) {
+    alerts.push({ type: 'warn', title: '⚠️ 集中度可能低估', text: '美股只填了合計、個股明細不足(<50%),曝險以個股明細計算會偏低。請至輸入頁補各股市值。' });
   }
 
   if (conc.tsmc > tsmcLimit) {
