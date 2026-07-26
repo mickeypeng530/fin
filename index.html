@@ -518,8 +518,8 @@
           <span style="font-size:0.75rem;color:var(--muted)" id="rate-source"></span>
         </div>
       </div>
-      <div style="margin-top:1rem;font-size:0.8rem;color:var(--muted)">▼ 個股明細（記錄用，美元）</div>
-      <div class="input-grid" style="margin-top:0.5rem;opacity:0.85">
+      <div style="margin-top:1rem;font-size:0.8rem;color:var(--muted)">▼ 個股明細（記錄用，美元；依持有市值自動排序 左→右=高→低）</div>
+      <div class="input-grid" id="us-detail-grid" style="margin-top:0.5rem;opacity:0.85">
         <div class="input-group">
           <label>VTI</label>
           <input type="number" id="in-us-vti" placeholder="0" step="1" data-stock="VTI" data-market="US">
@@ -861,30 +861,31 @@ const STOCK_API_URL = 'https://stock-price.mickeypeng530530.workers.dev/';
 // Stock definitions with TSMC weight for concentration calc
 const STOCK_DEFS = {
   // Taiwan stocks
-  // tsmcWeight/techWeight = 該標的的台積電/科技「含量」(look-through 估計值, as of 2026-Q2;會隨指數成分漂移,需定期校正)
-  '0050': { name: '台灣50', market: 'TW', tsmcWeight: 0.61, techWeight: 0.70 },
-  '006208': { name: '富邦50', market: 'TW', tsmcWeight: 0.61, techWeight: 0.70 },
-  '0056': { name: '高股息', market: 'TW', tsmcWeight: 0.05, techWeight: 0.15 },
+  // tsmcWeight/techWeight = 該標的的台積電/科技「含量」(look-through 估計值, as of 2026-Q3 校正;會隨指數成分漂移,需定期校正)
+  // Q3 校正重點:0050/006208 台積電 61%→59%;0056 已完全剔除台積電、但科技含量 15%→60%(成分大轉向);00929 6月換股出清台積電
+  '0050': { name: '台灣50', market: 'TW', tsmcWeight: 0.59, techWeight: 0.88 },
+  '006208': { name: '富邦50', market: 'TW', tsmcWeight: 0.59, techWeight: 0.88 },
+  '0056': { name: '高股息', market: 'TW', tsmcWeight: 0, techWeight: 0.60 },
   '00720B': { name: '元大投資級公司債', market: 'TW', tsmcWeight: 0, techWeight: 0 },
-  '00929': { name: '復華台灣科技優息', market: 'TW', tsmcWeight: 0.15, techWeight: 0.80 },
+  '00929': { name: '復華台灣科技優息', market: 'TW', tsmcWeight: 0, techWeight: 0.80 },
   '00955': { name: '中信日本', market: 'TW', tsmcWeight: 0, techWeight: 0.30 },
   '2330': { name: '台積電', market: 'TW', tsmcWeight: 1.0, techWeight: 1.0 },
   '2646': { name: '星宇航空', market: 'TW', tsmcWeight: 0, techWeight: 0 },
   // US stocks
   // cls = 資產類別(組合閘門 gate 4 用):broad=寬基/區域分散 ETF(增倉首選候選)、bond=債券(可增·防禦)、
   //       stock=個股、theme=主題 ETF、alt=另類(crypto 等) — 後三類不列增倉建議,落回 conviction 排序
-  'VTI': { name: 'Vanguard Total Stock', market: 'US', tsmcWeight: 0, techWeight: 0.30, cls: 'broad' },
-  'QQQ': { name: 'Nasdaq 100', market: 'US', tsmcWeight: 0.02, techWeight: 0.55, cls: 'broad' },
-  'VPL': { name: 'Vanguard Pacific', market: 'US', tsmcWeight: 0.05, techWeight: 0.20, cls: 'broad' },
-  'VGK': { name: 'Vanguard Europe', market: 'US', tsmcWeight: 0, techWeight: 0.15, cls: 'broad' },
+  'VTI': { name: 'Vanguard Total Stock', market: 'US', tsmcWeight: 0, techWeight: 0.37, cls: 'broad' },
+  'QQQ': { name: 'Nasdaq 100', market: 'US', tsmcWeight: 0.02, techWeight: 0.54, cls: 'broad' },
+  'VPL': { name: 'Vanguard Pacific', market: 'US', tsmcWeight: 0.05, techWeight: 0.21, cls: 'broad' },
+  'VGK': { name: 'Vanguard Europe', market: 'US', tsmcWeight: 0, techWeight: 0.10, cls: 'broad' },
   'TSLA': { name: 'Tesla', market: 'US', tsmcWeight: 0, techWeight: 1.0, cls: 'stock' },
   'TSM': { name: '台積電 ADR', market: 'US', tsmcWeight: 1.0, techWeight: 1.0, cls: 'stock' },
   'NVDA': { name: 'NVIDIA', market: 'US', tsmcWeight: 0, techWeight: 1.0, cls: 'stock' },
-  'VWO': { name: 'Vanguard Emerging', market: 'US', tsmcWeight: 0.13, techWeight: 0.25, cls: 'broad' },
+  'VWO': { name: 'Vanguard Emerging', market: 'US', tsmcWeight: 0.16, techWeight: 0.25, cls: 'broad' },
   'BRK.B': { name: '波克夏 B', market: 'US', tsmcWeight: 0, techWeight: 0, cls: 'stock' },
   'AAPL': { name: 'Apple', market: 'US', tsmcWeight: 0, techWeight: 1.0, cls: 'stock' },
   'GOOGL': { name: 'Alphabet', market: 'US', tsmcWeight: 0, techWeight: 1.0, cls: 'stock' },
-  'VEA': { name: 'Vanguard 成熟市場(除美)', market: 'US', tsmcWeight: 0, techWeight: 0.15, cls: 'broad' },
+  'VEA': { name: 'Vanguard 成熟市場(除美)', market: 'US', tsmcWeight: 0, techWeight: 0.14, cls: 'broad' },
   'ARKK': { name: '方舟創新', market: 'US', tsmcWeight: 0, techWeight: 0.85, cls: 'theme' },
   'IBIT': { name: 'iShares 比特幣', market: 'US', tsmcWeight: 0, techWeight: 0, cls: 'alt' },
   'ONDS': { name: 'Ondas(無人機)', market: 'US', tsmcWeight: 0, techWeight: 1.0, cls: 'stock' },
@@ -904,8 +905,10 @@ const US_KEYS = {
   fcx:'FCX', dis:'DIS', srta:'SRTA', arkx:'ARKX',
 };
 
-// STOCK_DEFS 權重的估計基準季;指數成分會漂(0050 台積電含量已 0.50→0.61),每季校正後更新此值(SOP §6)。
-const STOCK_DEFS_AS_OF = '2026-Q2';
+// STOCK_DEFS 權重的估計基準季;指數成分會漂(0050 台積電含量 0.50→0.61→0.59),每季校正後更新此值(SOP §6)。
+// 2026-Q3 校正來源:0050/006208/0056/00929 = etfinfo/MoneyDJ/玩股網(T3,發行商揭露轉載,三站互證);VTI/VWO/VPL/VGK/VEA = Vanguard fact sheet(T1, 6/30);QQQ = stockanalysis 等彙整(T3)。
+// 口徑註記:VTI techWeight 用 Morningstar 式 ~37%(Vanguard ICB 口徑為 41%,較寬);0050 techWeight 0.88 = 電子類合計(半導體70+電零10+其他電子4+電腦週邊4)。
+const STOCK_DEFS_AS_OF = '2026-Q3';
 // 比對當前季別:跨季即視為過期(複用 app 既有 news/KPI freshness 降級的同套思路)。
 function stockDefsFreshness() {
   const m = /^(\d{4})-Q([1-4])$/.exec(STOCK_DEFS_AS_OF);
@@ -920,8 +923,8 @@ function stockDefsFreshness() {
 
 // ETF 穿透含量表(單一標的的 ETF 內含,用於「真實單一曝險」;StOCK_DEFS 已涵蓋台積電/科技聚合,此處補單一個股重疊如 QQQ 內含 NVDA)
 const LOOKTHROUGH = {
-  'QQQ': { 'NVDA': 0.10 },
-  'VTI': { 'NVDA': 0.06 },
+  'QQQ': { 'NVDA': 0.083 },  // 2026-Q3: stockanalysis 7/24(各源 8.3–8.9%,取最新)
+  'VTI': { 'NVDA': 0.064 },  // 2026-Q3: Vanguard fact sheet 6/30(T1)
 };
 
 // ===== DEFAULT DATA =====
@@ -934,9 +937,11 @@ const DEFAULT_SETTINGS = {
     baby: { amount: 200, years: 2 },
     house: { amount: 1000, years: 10 },
     study: { amount: 1800, years: 20 },
+    retire: { amount: 6000, years: 30 },
   },
   tsmcLimit: 40,
   techLimit: 45,
+  reserveFloor: 0,
 };
 
 const SEED_SNAPSHOTS = [
@@ -1183,9 +1188,10 @@ async function fetchAllPrices() {
   btn.disabled = false;
   btn.textContent = '🔄 抓取股價';
   
-  // Save prices to db
+  // Save prices to db(標記未儲存,否則不會寫入 localStorage/檔案)
   db.prices = { ...cachedPrices };
-  
+  markUnsaved();
+
   setTimeout(() => { statusDiv.style.display = 'none'; }, 5000);
 }
 
@@ -1381,14 +1387,23 @@ function calcPortfolioActions(s) {
 // ===== FORECAST =====
 // 雙軌:第1年期初=firstVal(第一筆快照)、期末=currentVal(目前實際);第2年起從目前實際推估。
 // 同時推「原計畫」線(從 firstVal、用假設報酬一路推),每列附 planEnd 與 vsPlan(實際−計畫)。
-function calcShortForecast(firstVal, currentVal, settings) {
+function calcShortForecast(firstVal, currentVal, settings, elapsed = 1) {
   const monthlyIn = settings.monthlyShort * 12;
   const rate = settings.rateShort;
   const goals = settings.goals;
   const rows = [];
-  rows.push({ yr: 1, start: firstVal, invest: 0, yield: 0, withdraw: 0, beforeWithdraw: currentVal, end: currentVal, planEnd: firstVal, vsPlan: currentVal - firstVal, event: '起點→目前(實際)' });
-  let planVal = firstVal, actVal = currentVal;
-  for (let y = 2; y <= 11; y++) {
+  // 首列涵蓋第1–elapsed年(實際);計畫線同步推進 elapsed 年(含期間提領),vsPlan 才是同時點比較
+  let planVal = firstVal;
+  const pastEvents = [];
+  for (let y = 2; y <= elapsed; y++) {
+    let withdraw = 0;
+    if (y === goals.baby.years + 1) { withdraw = goals.baby.amount; pastEvents.push('小孩出生'); }
+    if (y === goals.house.years + 1) { withdraw = goals.house.amount; pastEvents.push('換房'); }
+    planVal = planVal + monthlyIn + (planVal + monthlyIn) * rate - withdraw;
+  }
+  rows.push({ yr: elapsed, span: elapsed, start: firstVal, invest: 0, yield: 0, withdraw: 0, beforeWithdraw: currentVal, end: currentVal, planEnd: planVal, vsPlan: currentVal - planVal, event: '起點→目前(實際)' + (pastEvents.length ? '·' + pastEvents.join('/') : '') });
+  let actVal = currentVal;
+  for (let y = elapsed + 1; y <= 11; y++) {
     let withdraw = 0, event = '';
     if (y === goals.baby.years + 1) { withdraw = goals.baby.amount; event = '小孩出生'; }
     if (y === goals.house.years + 1) { withdraw = goals.house.amount; event = '換房'; }
@@ -1402,14 +1417,23 @@ function calcShortForecast(firstVal, currentVal, settings) {
   return rows;
 }
 
-function calcLongForecast(firstVal, currentVal, settings) {
+function calcLongForecast(firstVal, currentVal, settings, elapsed = 1) {
   const rate = settings.rateLong;
   const goals = settings.goals;
   const monthlyAfter10 = settings.monthlyLong + settings.monthlyShort;
   const rows = [];
-  rows.push({ yr: 1, start: firstVal, invest: 0, yield: 0, withdraw: 0, beforeWithdraw: currentVal, end: currentVal, planEnd: firstVal, vsPlan: currentVal - firstVal, event: '起點→目前(實際)' });
-  let planVal = firstVal, actVal = currentVal;
-  for (let y = 2; y <= 31; y++) {
+  // 首列涵蓋第1–elapsed年(實際);計畫線同步推進 elapsed 年(含期間提領)
+  let planVal = firstVal;
+  const pastEvents = [];
+  for (let y = 2; y <= elapsed; y++) {
+    const mIn = (y <= 11 ? settings.monthlyLong : monthlyAfter10) * 12;
+    let withdraw = 0;
+    if (y === goals.study.years + 1) { withdraw = goals.study.amount; pastEvents.push('留學'); }
+    planVal = planVal + mIn + (planVal + mIn) * rate - withdraw;
+  }
+  rows.push({ yr: elapsed, span: elapsed, start: firstVal, invest: 0, yield: 0, withdraw: 0, beforeWithdraw: currentVal, end: currentVal, planEnd: planVal, vsPlan: currentVal - planVal, event: '起點→目前(實際)' + (pastEvents.length ? '·' + pastEvents.join('/') : '') });
+  let actVal = currentVal;
+  for (let y = elapsed + 1; y <= 31; y++) {
     const monthlyIn = (y <= 11 ? settings.monthlyLong : monthlyAfter10) * 12; // 第11年後短中期池投入轉入
     let withdraw = 0, event = '';
     if (y === goals.study.years + 1) { withdraw = goals.study.amount; event = '留學'; }
@@ -1555,12 +1579,30 @@ function renderPerformance() {
   const cL = calcSnapshot(latest), cF = calcSnapshot(first);
   const clr = v => v>=0 ? 'var(--ok)' : 'var(--danger)';
   const sign = v => (v>=0?'+':'') + v.toFixed(1);
-  // Modified Dietz(自起點,近似:假設每月投入=設定值)
+  // Modified Dietz(自起點):有 cost 蓋章的區段用實際 Δ累計投入,蓋章前的區段用設定值近似
   const totalDays = Math.max(1, (new Date(getDateKey(latest)) - new Date(getDateKey(first)))/dayMs);
   const totalMonths = totalDays/30.44;
-  const F = monthlyIn * totalMonths;
-  const md = cF.invest>0 ? (cL.invest - cF.invest - F)/(cF.invest + F/2)*100 : null;
-  const mdHtml = md!=null ? `<div style="margin-bottom:0.6rem"><div class="note-label">自起點組合報酬率(Modified Dietz, 近似)</div><div style="font-size:1.15rem;font-weight:700;color:${clr(md)}">${sign(md)}%</div><div style="font-size:0.72rem;color:var(--muted)">期間 ${totalMonths.toFixed(1)} 個月,假設每月投入 ${monthlyIn} 萬(設定值);實際投入不同會改變此值</div></div>` : '';
+  const sumCost = (co, usdR) => { let t=0; for (const p of ['short','tw']) for (const k in (co[p]||{})) t += co[p][k]||0; for (const k in (co.us||{})) t += (co.us[k]||0)*usdR/10000; return t; };
+  const stamped = snaps.filter(x => x.cost);
+  const dayOf = (x) => (new Date(getDateKey(x)) - new Date(getDateKey(first)))/dayMs;
+  const flows = [];
+  let mdSrc;
+  if (stamped.length >= 2) {
+    const d0 = dayOf(stamped[0]);
+    if (d0 > 0 && monthlyIn > 0) flows.push({ t: d0/2, amt: monthlyIn * d0/30.44 }); // 蓋章前視為均勻投入(權重取中點)
+    for (let i = 1; i < stamped.length; i++) {
+      const amt = sumCost(stamped[i].cost, stamped[i].usdtwd||32) - sumCost(stamped[i-1].cost, stamped[i-1].usdtwd||32);
+      if (amt) flows.push({ t: dayOf(stamped[i]), amt });
+    }
+    mdSrc = `${getDateKey(stamped[0])} 前投入用設定值估計,之後用 cost 蓋章實際值`;
+  } else {
+    flows.push({ t: totalDays/2, amt: monthlyIn * totalMonths });
+    mdSrc = `假設每月投入 ${monthlyIn} 萬(設定值);實際投入不同會改變此值`;
+  }
+  const F = flows.reduce((a,f)=>a+f.amt, 0);
+  const Wf = flows.reduce((a,f)=>a + f.amt*(totalDays - f.t)/totalDays, 0);
+  const md = cF.invest>0 ? (cL.invest - cF.invest - F)/(cF.invest + Wf)*100 : null;
+  const mdHtml = md!=null ? `<div style="margin-bottom:0.6rem"><div class="note-label">自起點組合報酬率(Modified Dietz)</div><div style="font-size:1.15rem;font-weight:700;color:${clr(md)}">${sign(md)}%</div><div style="font-size:0.72rem;color:var(--muted)">期間 ${totalMonths.toFixed(1)} 個月;${mdSrc}</div></div>` : '';
   // 本期拆解(有 cost 歷史→用實際 Δ累計投入;否則 fallback 估計)
   let decomp = '';
   if (snaps.length>=2) {
@@ -1599,10 +1641,11 @@ function mkForecastCharts() {
   const firstCalc = calcSnapshot(first);
   const latest = snaps[snaps.length - 1];
   const latestCalc = calcSnapshot(latest);
-  const shortRows = calcShortForecast(firstCalc.shortTotal, latestCalc.shortTotal, db.settings);
-  const longRows = calcLongForecast(firstCalc.longTotal, latestCalc.longTotal, db.settings);
+  // 實際經過年數(按年曆年):首列「起點→目前」涵蓋第1–elapsed年,年標籤才不會在跨年後錯位
+  const elapsed = Math.max(1, getYear(latest) - getYear(first) + 1);
+  const shortRows = calcShortForecast(firstCalc.shortTotal, latestCalc.shortTotal, db.settings, elapsed);
+  const longRows = calcLongForecast(firstCalc.longTotal, latestCalc.longTotal, db.settings, elapsed);
   const startYear = getYear(first);
-  const currentYrIndex = 1;
   
   destroyChart('short-forecast');
   const ctx1 = document.getElementById('chart-short-forecast').getContext('2d');
@@ -1655,24 +1698,20 @@ function mkForecastCharts() {
     }
   });
 
-  // 目前實際值 vs 預測值的分析
-  const shortActual = latestCalc.shortTotal;
-  const shortExpected = shortRows[currentYrIndex - 1]?.end || shortRows[0]?.end || 0;
-  const shortDiff = shortActual - shortExpected;
-  const shortAnalysis = currentYrIndex === 1
+  // 目前實際 vs 原計畫(同時點):第1年內起點即現在,之後直接用首列 vsPlan
+  const shortDiff = shortRows[0].vsPlan;
+  const shortAnalysis = elapsed === 1
     ? '<span style="color:var(--muted)">起點 = 現在</span>'
     : (shortDiff >= 0
-      ? `<span style="color:var(--ok)">超前 ${shortDiff.toFixed(1)} 萬 ✓</span>`
-      : `<span style="color:var(--danger)">落後 ${Math.abs(shortDiff).toFixed(1)} 萬，需加速</span>`);
-    
-  const longActual = latestCalc.longTotal;
-  const longExpected = longRows[currentYrIndex - 1]?.end || longRows[0]?.end || 0;
-  const longDiff = longActual - longExpected;
-  const longAnalysis = currentYrIndex === 1
+      ? `<span style="color:var(--ok)">超前計畫 ${shortDiff.toFixed(1)} 萬 ✓</span>`
+      : `<span style="color:var(--danger)">落後計畫 ${Math.abs(shortDiff).toFixed(1)} 萬，需加速</span>`);
+
+  const longDiff = longRows[0].vsPlan;
+  const longAnalysis = elapsed === 1
     ? '<span style="color:var(--muted)">起點 = 現在</span>'
     : (longDiff >= 0
-      ? `<span style="color:var(--ok)">超前 ${longDiff.toFixed(1)} 萬 ✓</span>`
-      : `<span style="color:var(--danger)">落後 ${Math.abs(longDiff).toFixed(1)} 萬，需加速</span>`);
+      ? `<span style="color:var(--ok)">超前計畫 ${longDiff.toFixed(1)} 萬 ✓</span>`
+      : `<span style="color:var(--danger)">落後計畫 ${Math.abs(longDiff).toFixed(1)} 萬，需加速</span>`);
 
   // 目前日期
   const currentDate = getDisplayDate(latest);
@@ -1682,7 +1721,13 @@ function mkForecastCharts() {
   const fmtW = v => v > 0 ? `<span style="color:var(--warn)">-${v.toFixed(1)}</span>` : '<span style="color:var(--muted)">—</span>';
   
   const vsCol = v => v>=0 ? `<span style="color:var(--ok)">+${v.toFixed(0)}</span>` : `<span style="color:var(--danger)">${v.toFixed(0)}</span>`;
-  const fcRow = (r) => `<tr style="${r.yr===1?'background:var(--card2)':''}"><td>第${r.yr}年（${startYear + r.yr - 1}）</td><td class="num">${r.start.toFixed(1)}</td><td class="num">${r.invest > 0 ? r.invest.toFixed(1) : (r.yr===1?'實際':'—')}</td><td class="num">${r.yield > 0 ? r.yield.toFixed(1) : (r.yr===1?'實際':'—')}</td><td class="num">${fmtW(r.withdraw)}</td><td class="num" style="color:${r.end<0?'var(--danger)':'var(--text)'}">${r.end.toFixed(1)}</td><td class="num">${vsCol(r.vsPlan)}</td><td style="color:var(--warn);font-size:0.8rem">${r.event||''}</td></tr>`;
+  const fcRow = (r) => {
+    const isNow = !!r.span; // 首列(起點→目前實際)
+    const yrLabel = r.span > 1
+      ? `第1–${r.yr}年（${startYear}–${startYear + r.yr - 1}）`
+      : `第${r.yr}年（${startYear + r.yr - 1}）`;
+    return `<tr style="${isNow?'background:var(--card2)':''}"><td>${yrLabel}</td><td class="num">${r.start.toFixed(1)}</td><td class="num">${r.invest > 0 ? r.invest.toFixed(1) : (isNow?'實際':'—')}</td><td class="num">${r.yield > 0 ? r.yield.toFixed(1) : (isNow?'實際':'—')}</td><td class="num">${fmtW(r.withdraw)}</td><td class="num" style="color:${r.end<0?'var(--danger)':'var(--text)'}">${r.end.toFixed(1)}</td><td class="num">${vsCol(r.vsPlan)}</td><td style="color:var(--warn);font-size:0.8rem">${r.event||''}</td></tr>`;
+  };
   tb1.innerHTML = shortRows.map(fcRow).join('');
 
   document.getElementById('tbody-long-forecast').innerHTML = longRows.map(fcRow).join('');
@@ -1720,12 +1765,14 @@ function renderOverview() {
   // Goals(用雙軌預測的「實際+推估」線評估達標 — beforeWithdraw 即實際線)
   const s = db.settings;
   const cFirst = calcSnapshot(snaps[0]);
-  const shortRows = calcShortForecast(cFirst.shortTotal, c.shortTotal, s);
-  const longRows = calcLongForecast(cFirst.longTotal, c.longTotal, s);
-  // 目標年數 +1 來取得正確的 row（因為第1年是起點）
-  const goalBabyForecast = shortRows.find(r => r.yr === s.goals.baby.years + 1)?.beforeWithdraw || 0;
-  const goalHouseForecast = shortRows.find(r => r.yr === s.goals.house.years + 1)?.beforeWithdraw || 0;
-  const goalStudyForecast = longRows.find(r => r.yr === s.goals.study.years + 1)?.beforeWithdraw || 0;
+  const elapsedOv = Math.max(1, getYear(latest) - getYear(snaps[0]) + 1);
+  const shortRows = calcShortForecast(cFirst.shortTotal, c.shortTotal, s, elapsedOv);
+  const longRows = calcLongForecast(cFirst.longTotal, c.longTotal, s, elapsedOv);
+  // 目標年數 +1 取得對應 row;目標年已過(被併入首列)則用目前實際值
+  const rowFc = (rows, yr, cur) => rows.find(r => r.yr === yr)?.beforeWithdraw ?? (yr <= elapsedOv ? cur : 0);
+  const goalBabyForecast = rowFc(shortRows, s.goals.baby.years + 1, c.shortTotal);
+  const goalHouseForecast = rowFc(shortRows, s.goals.house.years + 1, c.shortTotal);
+  const goalStudyForecast = rowFc(longRows, s.goals.study.years + 1, c.longTotal);
   const goalRetireForecast = longRows.find(r => r.yr === 31)?.end || 0; // 第31年（30年後）
 
   const goals = [
@@ -1798,19 +1845,14 @@ function renderConcentrationAlerts(snap) {
   }
   
   const container = document.getElementById('concentration-alerts');
-  if (alerts.length === 0) {
-    container.innerHTML = '';
-    return;
-  }
-  
   container.innerHTML = alerts.map(a => `
     <div class="alert-box ${a.type === 'warn' ? 'warn' : ''}">
       <div class="alert-title" style="color:var(--${a.type})">${a.title}</div>
       <div class="alert-items">${a.text}</div>
     </div>
   `).join('');
-  
-  // 渲染建議模組
+
+  // 渲染建議模組(無論有無警示都要更新,否則集中度回到限內時建議卡會停更)
   renderAdvice();
 }
 
@@ -1849,10 +1891,12 @@ function renderHoldingTables(latest) {
   // ===== 長期池配置比例 =====
   const twTotal = latest.longPoolTW?.total || 0;
   const usTotal = latest.longPoolUS?.total || 0;
-  const longTotal = twTotal + usTotal + (latest.longCash || 0);
+  // 現金含美元現金換算(與 calcPortfolioActions 同口徑)
+  const cashAll = (latest.longCash || 0) + (latest.longCashUsdTwd || (latest.longCashUsd || 0) * usd / 10000);
+  const longTotal = twTotal + usTotal + cashAll;
   const twPct = longTotal > 0 ? (twTotal / longTotal * 100).toFixed(1) : 0;
   const usPct = longTotal > 0 ? (usTotal / longTotal * 100).toFixed(1) : 0;
-  const cashPct = longTotal > 0 ? ((latest.longCash || 0) / longTotal * 100).toFixed(1) : 0;
+  const cashPct = longTotal > 0 ? (cashAll / longTotal * 100).toFixed(1) : 0;
   
   // 計算目標金額範圍
   const twTargetMin = (longTotal * 0.60).toFixed(0);
@@ -1897,7 +1941,7 @@ function renderHoldingTables(latest) {
     <div style="display:flex;align-items:center;gap:0.5rem">
       <span style="font-weight:600;font-size:0.85rem">現金</span>
       <span style="font-size:1rem">${cashPct}%</span>
-      <span style="color:var(--muted);font-size:0.85rem">${(latest.longCash || 0).toFixed(0)} 萬</span>
+      <span style="color:var(--muted);font-size:0.85rem">${cashAll.toFixed(0)} 萬${(latest.longCashUsd||0) > 0 ? '(含美元)' : ''}</span>
     </div>
   `;
 
@@ -1952,29 +1996,11 @@ function renderHoldingTables(latest) {
     </tbody>`;
   
   // ===== 長期池美股表格 =====
-  const usStocks = [
-    { name: 'VTI Vanguard 全美股市', key: 'vti', symbol: 'VTI', val: us.vti },
-    { name: 'QQQ Nasdaq 100', key: 'qqq', symbol: 'QQQ', val: us.qqq },
-    { name: 'VPL Vanguard 太平洋', key: 'vpl', symbol: 'VPL', val: us.vpl },
-    { name: 'VGK Vanguard 歐洲', key: 'vgk', symbol: 'VGK', val: us.vgk },
-    { name: 'TSLA Tesla', key: 'tsla', symbol: 'TSLA', val: us.tsla },
-    { name: 'TSM 台積電 ADR', key: 'tsm', symbol: 'TSM', val: us.tsm },
-    { name: 'NVDA NVIDIA', key: 'nvda', symbol: 'NVDA', val: us.nvda },
-    { name: 'VWO Vanguard 新興市場', key: 'vwo', symbol: 'VWO', val: us.vwo },
-    { name: 'BRK.B 波克夏', key: 'brkb', symbol: 'BRK.B', val: us.brkb },
-    { name: 'AAPL Apple', key: 'aapl', symbol: 'AAPL', val: us.aapl },
-    { name: 'GOOGL Alphabet', key: 'googl', symbol: 'GOOGL', val: us.googl },
-    { name: 'VEA Vanguard 成熟市場', key: 'vea', symbol: 'VEA', val: us.vea },
-    { name: 'ARKK 方舟創新', key: 'arkk', symbol: 'ARKK', val: us.arkk },
-    { name: 'IBIT iShares 比特幣', key: 'ibit', symbol: 'IBIT', val: us.ibit },
-    { name: 'ONDS Ondas', key: 'onds', symbol: 'ONDS', val: us.onds },
-    { name: 'IEI iShares 3-7年美債', key: 'iei', symbol: 'IEI', val: us.iei },
-    { name: 'ARKG 方舟基因體', key: 'arkg', symbol: 'ARKG', val: us.arkg },
-    { name: 'FCX Freeport 銅礦', key: 'fcx', symbol: 'FCX', val: us.fcx },
-    { name: 'DIS Disney', key: 'dis', symbol: 'DIS', val: us.dis },
-    { name: 'SRTA', key: 'srta', symbol: 'SRTA', val: us.srta },
-    { name: 'ARKX 方舟太空', key: 'arkx', symbol: 'ARKX', val: us.arkx },
-  ].filter(s => s.val > 0);
+  // 由 US_KEYS + STOCK_DEFS 衍生(單一對照表;新增標的自動跟上),依市值高→低排序
+  const usStocks = Object.entries(US_KEYS)
+    .map(([key, symbol]) => ({ name: `${symbol} ${STOCK_DEFS[symbol]?.name || ''}`.trim(), key, symbol, val: us[key] }))
+    .filter(s => s.val > 0)
+    .sort((a, b) => b.val - a.val);
   
   document.getElementById('table-us').innerHTML = `
     <thead><tr><th>標的</th><th class="num">美元</th><th class="num">台幣（萬）</th><th class="num">報酬率</th></tr></thead>
@@ -2172,10 +2198,23 @@ function loadLatestToForm() {
   }
   document.getElementById('in-lt-us-usd').value = usUsd || '';
   for (const k of Object.keys(US_KEYS)) { const el = document.getElementById('in-us-' + k); if (el) el.value = s.longPoolUS?.[k] || ''; }
+  sortUsDetailGrid();
   document.getElementById('in-lt-cash').value = s.longCash||'';
   document.getElementById('in-lt-cash-usd').value = s.longCashUsd||'';
   document.getElementById('in-usdtwd').value = usdtwd;
   updateSums(); // 更新合計
+}
+
+// 美股明細輸入欄依目前輸入值(持有市值 USD)重排:左→右=高→低;空值/0 依原順序排後面
+function sortUsDetailGrid() {
+  const grid = document.getElementById('us-detail-grid');
+  if (!grid) return;
+  const groups = [...grid.children];
+  const valOf = (g) => { const inp = g.querySelector('input[data-stock]'); return inp ? (+inp.value || 0) : 0; };
+  groups
+    .map((g, i) => ({ g, v: valOf(g), i }))
+    .sort((a, b) => b.v - a.v || a.i - b.i)
+    .forEach(({ g }) => grid.appendChild(g));
 }
 
 // ===== SETTINGS =====
