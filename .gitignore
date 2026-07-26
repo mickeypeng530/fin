@@ -8,3 +8,4 @@ Thumbs.db
 # 本地分析方法/設定 — 含投資策略與現況,不入公開 repo
 CLAUDE.md
 .claude/
+fin_data.json.bak*
