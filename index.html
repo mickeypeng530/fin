@@ -989,7 +989,21 @@ const DEFAULT_STOCK_ANALYSIS = { date: '', source: '', stocks: {} };
 // ===== DATA LAYER =====
 let db = { settings: { ...DEFAULT_SETTINGS }, snapshots: [], cost: emptyCost(), prices: {}, advice: null, stockAnalysis: { ...DEFAULT_STOCK_ANALYSIS }, channels: { date: '', source: '', items: {} }, judgmentLog: [] };
 let hasUnsaved = false;
-let cachedPrices = {}; // { symbol: { price, timestamp } }
+let cachedPrices = {}; // { symbol: { price, timestamp, date } } timestamp=抓取時間, date=上游回傳的資料日(收盤日)
+
+// 從 db.prices 回填記憶體快取。不回填的話,fetchAllPrices 結尾寫回 db.prices 時,
+// 本次沒抓成功的標的(例如美股整批被上游 429)會被從存檔中抹掉。
+function hydratePriceCache() {
+  cachedPrices = { ...(db.prices || {}) };
+}
+
+// 價格資料日標籤:優先用上游回傳的收盤日,Worker 尚未提供時退回抓取時間
+function priceAsOfLabel(entry) {
+  if (!entry) return '';
+  if (entry.date) return ` · ${entry.date}`;
+  if (entry.timestamp) return ` · 抓取於 ${new Date(entry.timestamp).toLocaleDateString('zh-TW')}`;
+  return '';
+}
 
 function markUnsaved() {
   hasUnsaved = true;
@@ -1020,6 +1034,7 @@ function loadFile(event) {
         channels: loaded.channels || { date: '', source: '', items: {} },
         judgmentLog: loaded.judgmentLog || [],
       };
+      hydratePriceCache();
       saveToLocalStorage(); // 自動存到 localStorage
       enterApp();
       showToast('資料載入成功');
@@ -1056,6 +1071,7 @@ function loadFromLocalStorage() {
         channels: loaded.channels || { date: '', source: '', items: {} },
         judgmentLog: loaded.judgmentLog || [],
       };
+      hydratePriceCache();
       return true;
     }
   } catch (e) {
@@ -1075,6 +1091,7 @@ function startNew() {
     channels: { date: '', source: '', items: {} },
     judgmentLog: [],
   };
+  hydratePriceCache();
   saveToLocalStorage(); // 自動存到 localStorage
   enterApp();
   showToast('已建立新資料，請記得儲存');
@@ -1110,7 +1127,8 @@ async function fetchPrice(symbol, market) {
     const res = await fetch(`${STOCK_API_URL}?stock=${symbol}&market=${market}`);
     const data = await res.json();
     if (data.price) {
-      cachedPrices[symbol] = { price: data.price, timestamp: Date.now() };
+      // date = 上游回傳的資料日(收盤日)。Worker 目前未回傳,補上後前端自動生效。
+      cachedPrices[symbol] = { price: data.price, timestamp: Date.now(), date: data.date || data.as_of || null };
       return data.price;
     }
     return null;
@@ -1150,27 +1168,30 @@ async function fetchAllPrices() {
     statusText.textContent = `正在抓取... (${completed}/${total})`;
     
     if (priceDiv) {
-      if (price) {
+      const entry = cachedPrices[symbol];
+      const shown = price || entry?.price || null; // 抓取失敗時沿用存檔舊價,不讓畫面留白
+      if (shown) {
         const currency = market === 'US' ? 'USD' : 'NT$';
-        priceDiv.textContent = `現價: ${currency} ${price.toFixed(2)}`;
-        priceDiv.className = 'price-info';
-        
+        const stale = !price;
+        priceDiv.textContent = `${stale ? '⚠ 抓取失敗，沿用 ' : '現價: '}${currency} ${shown.toFixed(2)}${priceAsOfLabel(entry)}`;
+        priceDiv.className = stale ? 'price-info error' : 'price-info';
+
         // Calculate shares if value is entered
         const value = parseFloat(input.value);
         if (value > 0) {
           let shares;
           if (market === 'TW') {
-            shares = (value * 10000) / price; // value is in 萬
+            shares = (value * 10000) / shown; // value is in 萬
           } else {
-            shares = value / price; // value is in USD
+            shares = value / shown; // value is in USD
           }
           priceDiv.innerHTML += ` → 約 ${shares.toFixed(0)} 股`;
         }
       } else {
         priceDiv.textContent = '無法取得價格';
         priceDiv.className = 'price-info error';
-        failed++;
       }
+      if (!price) failed++;
     }
   }
   
@@ -1189,10 +1210,24 @@ async function fetchAllPrices() {
   btn.textContent = '🔄 抓取股價';
   
   // Save prices to db(標記未儲存,否則不會寫入 localStorage/檔案)
-  db.prices = { ...cachedPrices };
+  // 合併而非覆蓋:本次沒抓成功的標的要保留存檔中的舊價,否則會被整批抹掉
+  db.prices = { ...(db.prices || {}), ...cachedPrices };
   markUnsaved();
 
   setTimeout(() => { statusDiv.style.display = 'none'; }, 5000);
+}
+
+// 進輸入頁時先把「上次已知價 + 資料日」畫出來(不打 API),讓過期報價一眼可見
+function renderCachedPriceLabels() {
+  document.querySelectorAll('input[data-stock]').forEach(input => {
+    const priceDiv = document.getElementById('price-' + input.id.replace('in-', ''));
+    if (!priceDiv || priceDiv.textContent) return; // 已有本次抓取結果就不覆蓋
+    const entry = cachedPrices[input.dataset.stock];
+    if (!entry?.price) return;
+    const currency = input.dataset.market === 'US' ? 'USD' : 'NT$';
+    priceDiv.textContent = `上次: ${currency} ${entry.price.toFixed(2)}${priceAsOfLabel(entry)}`;
+    priceDiv.className = 'price-info';
+  });
 }
 
 // ===== COMPUTED =====
@@ -2355,7 +2390,7 @@ function showPage(id, btn) {
   if (id==='history') { renderHistory(); }
   if (id==='forecast') { mkForecastCharts(); }
   if (id==='settings') { renderSettings(); renderCostBasisGrid(); }
-  if (id==='input') { loadLatestToForm(); }
+  if (id==='input') { loadLatestToForm(); renderCachedPriceLabels(); }
 }
 
 // ===== TOAST =====
