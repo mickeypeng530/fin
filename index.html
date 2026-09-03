@@ -498,6 +498,11 @@
           <input type="number" id="in-lt-00720b" placeholder="0" step="0.1" data-stock="00720B" data-market="TW">
           <div class="price-info" id="price-lt-00720b"></div>
         </div>
+        <div class="input-group">
+          <label>00865B 美短債</label>
+          <input type="number" id="in-lt-00865b" placeholder="0" step="0.1" data-stock="00865B" data-market="TW">
+          <div class="price-info" id="price-lt-00865b"></div>
+        </div>
       </div>
     </div>
 
@@ -866,7 +871,8 @@ const STOCK_DEFS = {
   '0050': { name: '台灣50', market: 'TW', tsmcWeight: 0.59, techWeight: 0.88 },
   '006208': { name: '富邦50', market: 'TW', tsmcWeight: 0.59, techWeight: 0.88 },
   '0056': { name: '高股息', market: 'TW', tsmcWeight: 0, techWeight: 0.60 },
-  '00720B': { name: '元大投資級公司債', market: 'TW', tsmcWeight: 0, techWeight: 0 },
+  '00720B': { name: '元大投資級公司債', market: 'TW', tsmcWeight: 0, techWeight: 0, cls: 'bond' },
+  '00865B': { name: '國泰US短期公債', market: 'TW', tsmcWeight: 0, techWeight: 0, cls: 'bond' }, // 美元避險桶:累積型不配息、底層美債(算美元/債,不算美股缺口)
   '00929': { name: '復華台灣科技優息', market: 'TW', tsmcWeight: 0, techWeight: 0.80 },
   '00955': { name: '中信日本', market: 'TW', tsmcWeight: 0, techWeight: 0.30 },
   '2330': { name: '台積電', market: 'TW', tsmcWeight: 1.0, techWeight: 1.0 },
@@ -950,7 +956,7 @@ const SEED_SNAPSHOTS = [
     date: "2026-01-01",
     reserve: 0,
     shortPool: { fubong50: 0, b00720b: 0, deposit: 0 },
-    longPoolTW: { total: 0, tw50: 0, fb50: 0, n0056: 0, n00929: 0, n00955: 0, n2330: 0, n2646: 0, b00720b: 0 },
+    longPoolTW: { total: 0, tw50: 0, fb50: 0, n0056: 0, n00929: 0, n00955: 0, n2330: 0, n2646: 0, b00720b: 0, b00865b: 0 },
     longPoolUS: { total: 0, totalUsd: 0, vti: 0, qqq: 0, vpl: 0, vgk: 0, tsla: 0, tsm: 0, nvda: 0, vwo: 0, brkb: 0 },
     longCash: 0,
     longCashUsd: 0,
@@ -962,7 +968,7 @@ const SEED_SNAPSHOTS = [
 function emptyCost() {
   return {
     short: { fubong50: 0, b00720b: 0 },
-    tw: { tw50: 0, fb50: 0, n0056: 0, n00929: 0, n00955: 0, n2330: 0, n2646: 0, b00720b: 0 },
+    tw: { tw50: 0, fb50: 0, n0056: 0, n00929: 0, n00955: 0, n2330: 0, n2646: 0, b00720b: 0, b00865b: 0 },
     us: Object.keys(US_KEYS).reduce((o, k) => (o[k] = 0, o), {}),
   };
 }
@@ -976,6 +982,7 @@ const COST_KEYS = {
   '0050':[['tw','tw50']], '006208':[['short','fubong50'],['tw','fb50']], '0056':[['tw','n0056']],
   '00929':[['tw','n00929']], '00955':[['tw','n00955']], '2330':[['tw','n2330']], '2646':[['tw','n2646']],
   '00720B':[['short','b00720b'],['tw','b00720b']],
+  '00865B':[['tw','b00865b']],
   ...Object.fromEntries(Object.entries(US_KEYS).map(([k, sym]) => [sym, [['us', k]]])),
 };
 function symbolCost(symbol) {
@@ -1297,6 +1304,7 @@ function calcConcentration(s) {
     n2330: '2330',
     n2646: '2646',
     b00720b: '00720B',
+    b00865b: '00865B',
   };
   
   for (const [key, symbol] of Object.entries(twMap)) {
@@ -1341,7 +1349,7 @@ function calcEffectiveWeights(s) {
   const invest = calcSnapshot(s).invest || 1;
   const val = {};
   const add = (sym, v) => { if (v > 0) val[sym] = (val[sym] || 0) + v; };
-  const twMap = { tw50:'0050', fb50:'006208', n0056:'0056', n00929:'00929', n00955:'00955', n2330:'2330', n2646:'2646', b00720b:'00720B' };
+  const twMap = { tw50:'0050', fb50:'006208', n0056:'0056', n00929:'00929', n00955:'00955', n2330:'2330', n2646:'2646', b00720b:'00720B', b00865b:'00865B' };
   for (const [k, sym] of Object.entries(twMap)) add(sym, s.longPoolTW?.[k] || 0);
   add('006208', s.shortPool?.fubong50 || 0);
   add('00720B', s.shortPool?.b00720b || 0);
@@ -1394,6 +1402,10 @@ function calcPortfolioActions(s) {
       if (cashLock) { action = '持有(現金流鎖)'; reason = cashLock; }
       else if (cls === 'broad') { action = '增倉首選'; reason = `美股低配 ${usPct.toFixed(0)}% < 目標 30-35%,寬基/區域分散 ETF(降集中首選)`; }
       else { action = '可增(防禦)'; reason = `美股低配 ${usPct.toFixed(0)}%,債券部位增加抗波動(非分散首選)`; }
+    } else if (cls === 'bond') {
+      // TW 掛牌債(00720B/00865B)不算台股股票曝險,不受台股超配鎖;照 §5 bond=可增(防禦)
+      if (cashLock) { action = '持有(現金流鎖)'; reason = cashLock; }
+      else { action = '可增(防禦)'; reason = '債券/短債部位:防禦與美元避險桶墊高(不計股票配置)'; }
     } else if (market === 'TW' && twOver) {
       action = '持有'; reason = `台股已超配 ${twPct.toFixed(0)}% > 70%,不再加碼`;
     } else if (conv === 'high') {
@@ -1412,7 +1424,7 @@ function calcPortfolioActions(s) {
     const conflict = conv === 'high' && /(減|封頂|類別|出清)/.test(action);
     out[sym] = { action, reason, overlap, conflict, conviction: conv };
   };
-  const twMap = { tw50:'0050', fb50:'006208', n0056:'0056', n00929:'00929', n00955:'00955', n2330:'2330', n2646:'2646', b00720b:'00720B' };
+  const twMap = { tw50:'0050', fb50:'006208', n0056:'0056', n00929:'00929', n00955:'00955', n2330:'2330', n2646:'2646', b00720b:'00720B', b00865b:'00865B' };
   for (const [k, sym] of Object.entries(twMap)) if ((s.longPoolTW?.[k] || 0) > 0) decide(sym, 'TW');
   if ((s.shortPool?.fubong50 || 0) > 0) decide('006208', 'TW');
   for (const [k, sym] of Object.entries(US_KEYS)) if ((s.longPoolUS?.[k] || 0) > 0) decide(sym, 'US');
@@ -1657,7 +1669,7 @@ function renderPerformance() {
   // 前五大持股(raw 市值)
   const usd = latest.usdtwd||32, val={};
   const add=(n,v)=>{if(v>0)val[n]=(val[n]||0)+v;};
-  const twMap={tw50:'0050 台灣50',fb50:'006208 富邦50',n0056:'0056 高股息',n00929:'00929',n00955:'00955 中信日本',n2330:'2330 台積電',n2646:'2646 星宇',b00720b:'00720B'};
+  const twMap={tw50:'0050 台灣50',fb50:'006208 富邦50',n0056:'0056 高股息',n00929:'00929',n00955:'00955 中信日本',n2330:'2330 台積電',n2646:'2646 星宇',b00720b:'00720B',b00865b:'00865B 美短債'};
   for(const[k,n]of Object.entries(twMap))add(n,latest.longPoolTW?.[k]||0);
   add('006208 富邦50', latest.shortPool?.fubong50||0); add('00720B', latest.shortPool?.b00720b||0);
   for(const[k,n]of Object.entries(US_KEYS))add(n,(latest.longPoolUS?.[k]||0)*usd/10000);
@@ -2014,6 +2026,7 @@ function renderHoldingTables(latest) {
     { name: '2330 台積電', key: 'n2330', symbol: '2330', val: tw.n2330 },
     { name: '2646 星宇航空', key: 'n2646', symbol: '2646', val: tw.n2646 },
     { name: '00720B 投資級債', key: 'b00720b', symbol: '00720B', val: tw.b00720b },
+    { name: '00865B 美短債', key: 'b00865b', symbol: '00865B', val: tw.b00865b },
   ].filter(s => s.val > 0);
   
   document.getElementById('table-tw').innerHTML = `
@@ -2080,7 +2093,7 @@ function renderHistory() {
           </div>
           <div>
             <div style="font-weight:600;margin-bottom:0.4rem;color:var(--accent)">長期池台股</div>
-            ${Object.entries({台灣50:tw.tw50,富邦50:tw.fb50,'2330':tw.n2330,'2646':tw.n2646,'00720B':tw.b00720b})
+            ${Object.entries({台灣50:tw.tw50,富邦50:tw.fb50,'2330':tw.n2330,'2646':tw.n2646,'00720B':tw.b00720b,'00865B':tw.b00865b})
               .map(([k,v])=>`<div style="display:flex;justify-content:space-between"><span>${k}</span><span>${(v||0).toFixed(1)} 萬</span></div>`).join('')}
           </div>
           <div>
@@ -2189,6 +2202,7 @@ function saveSnapshot() {
       n2330: +document.getElementById('in-lt-2330').value || 0,
       n2646: +document.getElementById('in-lt-2646').value || 0,
       b00720b: +document.getElementById('in-lt-00720b').value || 0,
+      b00865b: +document.getElementById('in-lt-00865b').value || 0,
     },
     longPoolUS: Object.keys(US_KEYS).reduce((o, k) => {
       o[k] = +document.getElementById('in-us-' + k).value || 0; return o;
@@ -2225,6 +2239,7 @@ function loadLatestToForm() {
   document.getElementById('in-lt-2330').value = s.longPoolTW?.n2330||'';
   document.getElementById('in-lt-2646').value = s.longPoolTW?.n2646||'';
   document.getElementById('in-lt-00720b').value = s.longPoolTW?.b00720b||'';
+  document.getElementById('in-lt-00865b').value = s.longPoolTW?.b00865b||'';
   // 美股合計（美元）- 優先用 totalUsd，向下相容用 total 反算
   const usdtwd = s.usdtwd || 32;
   let usUsd = s.longPoolUS?.totalUsd;
@@ -2295,7 +2310,7 @@ function saveSettings() {
 // ===== COST BASIS(累計投入,依池分開)=====
 const COST_GRID = {
   short: { label: '短中期池（萬）', items: [['fubong50','006208 富邦50'],['b00720b','00720B 投資級債']] },
-  tw: { label: '長期池台股（萬）', items: [['tw50','0050 台灣50'],['fb50','006208 富邦50'],['n0056','0056 高股息'],['n00929','00929'],['n00955','00955 中信日本'],['n2330','2330 台積電'],['n2646','2646 星宇'],['b00720b','00720B 投資級債']] },
+  tw: { label: '長期池台股（萬）', items: [['tw50','0050 台灣50'],['fb50','006208 富邦50'],['n0056','0056 高股息'],['n00929','00929'],['n00955','00955 中信日本'],['n2330','2330 台積電'],['n2646','2646 星宇'],['b00720b','00720B 投資級債'],['b00865b','00865B 美短債']] },
   us: { label: '長期池美股（USD）', items: Object.entries(US_KEYS) },
 };
 function renderCostBasisGrid() {
@@ -2440,7 +2455,7 @@ function renderStockAnalysis() {
     agg[symbol].val += valTwd;
     agg[symbol].valUsd += (valUsd || 0);
   };
-  const twMap = { tw50:'0050', fb50:'006208', n0056:'0056', n00929:'00929', n00955:'00955', n2330:'2330', n2646:'2646', b00720b:'00720B' };
+  const twMap = { tw50:'0050', fb50:'006208', n0056:'0056', n00929:'00929', n00955:'00955', n2330:'2330', n2646:'2646', b00720b:'00720B', b00865b:'00865B' };
   for (const [k,sym] of Object.entries(twMap)) add(sym, latest.longPoolTW?.[k]||0, 'TW');
   add('006208', latest.shortPool?.fubong50||0, 'TW');
   add('00720B', latest.shortPool?.b00720b||0, 'TW');
