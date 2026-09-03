@@ -967,7 +967,7 @@ const SEED_SNAPSHOTS = [
 // 累計投入成本「依池分開」(key 對齊市值結構;台股萬/美股USD)。真實值不進公開 repo,由本地 fin_data.json 載入。
 function emptyCost() {
   return {
-    short: { fubong50: 0, b00720b: 0 },
+    short: { fubong50: 0, b00720b: 0, deposit: 0 },
     tw: { tw50: 0, fb50: 0, n0056: 0, n00929: 0, n00955: 0, n2330: 0, n2646: 0, b00720b: 0, b00865b: 0 },
     us: Object.keys(US_KEYS).reduce((o, k) => (o[k] = 0, o), {}),
   };
@@ -2309,7 +2309,7 @@ function saveSettings() {
 
 // ===== COST BASIS(累計投入,依池分開)=====
 const COST_GRID = {
-  short: { label: '短中期池（萬）', items: [['fubong50','006208 富邦50'],['b00720b','00720B 投資級債']] },
+  short: { label: '短中期池（萬）', items: [['fubong50','006208 富邦50'],['b00720b','00720B 投資級債'],['deposit','定存(累計投入)']] },
   tw: { label: '長期池台股（萬）', items: [['tw50','0050 台灣50'],['fb50','006208 富邦50'],['n0056','0056 高股息'],['n00929','00929'],['n00955','00955 中信日本'],['n2330','2330 台積電'],['n2646','2646 星宇'],['b00720b','00720B 投資級債'],['b00865b','00865B 美短債']] },
   us: { label: '長期池美股（USD）', items: Object.entries(US_KEYS) },
 };
